@@ -22,14 +22,16 @@ export const ANIMATIONS = [
     page: "intro.html",
   },
   {
-    id: "slash",
-    label: "Slash Finisher",
-    description: "One token cuts another to pieces, leaps out and lands (about 11 s).",
+    id: "assault",
+    label: "Team Assault",
+    description: "Up to 4 tokens appear in glass, rush 1 target in black silhouette, and the lead lands (about 16 s).",
     page: "finisher.html",
   },
 ];
 
-export const animationById = (id) => ANIMATIONS.find((a) => a.id === id) || ANIMATIONS[0];
+// "slash" was the previous name of the two-token finisher.
+export const animationById = (id) =>
+  ANIMATIONS.find((a) => a.id === (id === "slash" ? "assault" : id)) || ANIMATIONS[0];
 
 export function loadSettings() {
   try {
@@ -75,12 +77,13 @@ const tokenInfo = (item) => ({
   name: tokenName(item),
 });
 
-/** Payload for the two-token Slash Finisher. */
-export function finisherPayload(attacker, target, overrides = {}) {
+/** Payload for Team Assault: 1-4 team tokens, one of them the lead, and 1 target. */
+export function assaultPayload(team, leadIndex, target, overrides = {}) {
   const settings = loadSettings();
   return {
-    animation: "slash",
-    attacker: tokenInfo(attacker),
+    animation: "assault",
+    team: team.slice(0, 4).map(tokenInfo),
+    leadIndex,
     target: tokenInfo(target),
     caption: overrides.caption ?? settings.caption,
     accent: overrides.accent ?? settings.accent,

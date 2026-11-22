@@ -44,20 +44,11 @@
           </label>
         </div>
 
-        <div id="slashFields" class="stack" hidden>
-          <div class="versus">
-            <button id="attackerSlot" class="slot" type="button">
-              <small>Attacker</small>
-              <img id="attackerImg" alt="" hidden />
-              <span id="attackerName"></span>
-            </button>
-            <button id="swap" class="ghost swap" type="button" title="Swap attacker and target" aria-label="Swap attacker and target">⇄</button>
-            <button id="targetSlot" class="slot" type="button">
-              <small>Target</small>
-              <img id="targetImg" alt="" hidden />
-              <span id="targetName"></span>
-            </button>
-          </div>
+        <div id="assaultFields" class="stack" hidden>
+          <div class="team-label">Player team <em>(1–4)</em></div>
+          <div id="teamGrid" class="team-grid"></div>
+          <div class="team-label">Enemy target</div>
+          <div id="targetSlot"></div>
           <label class="field">
             <span>Ending text</span>
             <input id="caption" type="text" maxlength="28" placeholder="CURTAIN CALL" />

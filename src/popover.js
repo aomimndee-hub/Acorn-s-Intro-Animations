@@ -1,15 +1,19 @@
 import OBR, { isImage } from "@owlbear-rodeo/sdk";
 import {
-  ANIMATIONS, CHANNEL, animationById, finisherPayload, loadSettings, payloadFor, saveSettings, tokenName,
+  ANIMATIONS, CHANNEL, animationById, assaultPayload, loadSettings, payloadFor, saveSettings, tokenName,
 } from "./shared.js";
 
 const $ = (id) => document.getElementById(id);
+const TEAM_SIZE = 4;
 let current = null; // first selected image item
-let attacker = null;
+let team = Array(TEAM_SIZE).fill(null);
+let leadIndex = 0;
 let target = null;
+let lastSelection = "";
 let nameEdited = false;
+const cards = [];
 
-const mode = () => $("animation").value;
+const mode = () => animationById($("animation").value).id;
 
 function initVolume() {
   const vol = $("volume");
@@ -24,14 +28,14 @@ function initVolume() {
 }
 
 function updateControls() {
-  const slash = mode() === "slash";
-  $("crystalFields").hidden = slash;
-  $("slashFields").hidden = !slash;
+  const assault = mode() === "assault";
+  $("crystalFields").hidden = assault;
+  $("assaultFields").hidden = !assault;
   $("animDesc").textContent = animationById(mode()).description;
-  $("hint").innerHTML = slash
-    ? "Tip: select two tokens, attacker first, or right-click them → <b>Slash Finisher</b>."
+  $("hint").innerHTML = assault
+    ? "Tip: select 2–5 tokens. <b>First = lead, last = target.</b> Click any card to replace it with the selected token."
     : "Tip: you can also right-click a token → <b>Play Intro Cutscene</b>.";
-  const ready = slash ? !!attacker && !!target && attacker.id !== target.id : !!current;
+  const ready = assault ? team.some(Boolean) && !!target : !!current;
   $("play").disabled = $("preview-btn").disabled = !ready;
 }
 
@@ -43,17 +47,102 @@ function showItem(item) {
   if (!nameEdited) $("name").value = item ? tokenName(item) : "";
 }
 
-function showSlot(prefix, item) {
-  const img = $(`${prefix}Img`);
-  img.src = item ? item.image.url : "";
-  img.hidden = !item;
-  $(`${prefix}Name`).textContent = item ? tokenName(item) : "Select a token, then click";
+function fixLead() {
+  if (!team[leadIndex]) {
+    const first = team.findIndex(Boolean);
+    leadIndex = first < 0 ? 0 : first;
+  }
+}
+
+function paintCard(card, item) {
+  card.img.src = item ? item.image.url : "";
+  card.img.hidden = !item;
+  card.name.textContent = item ? tokenName(item) : "Empty";
+  card.root.classList.toggle("filled", !!item);
+  card.clear.hidden = !item;
 }
 
 function showSlots() {
-  showSlot("attacker", attacker);
-  showSlot("target", target);
+  fixLead();
+  cards.forEach((card, i) => {
+    paintCard(card, team[i]);
+    const isLead = !!team[i] && i === leadIndex;
+    card.lead.hidden = !team[i];
+    card.lead.setAttribute("aria-pressed", String(isLead));
+    card.lead.textContent = isLead ? "★ Lead" : "☆ Lead";
+    card.root.classList.toggle("is-lead", isLead);
+  });
+  paintCard(targetCard, target);
   updateControls();
+}
+
+function assignTeam(index) {
+  if (!current) return;
+  if (target?.id === current.id) target = null;
+  team = team.map((item, i) => (i !== index && item?.id === current.id ? null : item));
+  team[index] = current;
+  showSlots();
+}
+
+function assignTarget() {
+  if (!current) return;
+  team = team.map((item) => (item?.id === current.id ? null : item));
+  target = current;
+  showSlots();
+}
+
+function makeCard(label, onAssign, onClear) {
+  const root = document.createElement("div");
+  root.className = "token-card";
+  const main = document.createElement("button");
+  main.type = "button";
+  main.className = "token-main";
+  main.title = "Use the selected token here";
+  const small = document.createElement("small");
+  small.textContent = label;
+  const img = document.createElement("img");
+  img.alt = "";
+  img.hidden = true;
+  const name = document.createElement("span");
+  main.append(small, img, name);
+  main.addEventListener("click", onAssign);
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.className = "token-clear";
+  clear.textContent = "×";
+  clear.setAttribute("aria-label", `Remove ${label}`);
+  clear.hidden = true;
+  clear.addEventListener("click", onClear);
+  root.append(main, clear);
+  return { root, img, name, clear };
+}
+
+let targetCard = null;
+function buildCards() {
+  for (let i = 0; i < TEAM_SIZE; i++) {
+    const card = makeCard(`Player ${i + 1}`, () => assignTeam(i), () => {
+      team[i] = null;
+      showSlots();
+    });
+    const lead = document.createElement("button");
+    lead.type = "button";
+    lead.className = "token-lead";
+    lead.hidden = true;
+    lead.addEventListener("click", () => {
+      leadIndex = i;
+      showSlots();
+    });
+    card.root.append(lead);
+    card.lead = lead;
+    $("teamGrid").append(card.root);
+    cards.push(card);
+  }
+  targetCard = makeCard("Target", assignTarget, () => {
+    target = null;
+    showSlots();
+  });
+  targetCard.root.classList.add("is-target");
+  $("targetSlot").append(targetCard.root);
 }
 
 async function refreshSelection() {
@@ -64,18 +153,34 @@ async function refreshSelection() {
   const item = images[0] || null;
   if (item?.id !== current?.id) nameEdited = false;
   showItem(item);
-  if (images.length >= 2) [attacker, target] = images;
+
+  // Fill the cards only when the selection really changes, so manual edits stay.
+  const key = images.map((i) => i.id).join(",");
+  if (key !== lastSelection) {
+    lastSelection = key;
+    if (images.length >= 2) {
+      const members = images.slice(0, -1).slice(0, TEAM_SIZE);
+      team = Array.from({ length: TEAM_SIZE }, (_, i) => members[i] || null);
+      target = images[images.length - 1];
+      leadIndex = 0;
+    }
+  }
   showSlots();
 }
 
 async function play(destination) {
-  if (mode() === "slash") {
-    if (!attacker || !target) return;
+  if (mode() === "assault") {
+    if (!target || !team.some(Boolean)) return;
     const settings = saveSettings({
       caption: $("caption").value.trim() || "CURTAIN CALL",
       accent: $("accent").value,
     });
-    const payload = finisherPayload(attacker, target, { caption: settings.caption, accent: settings.accent });
+    const members = team.filter(Boolean);
+    const lead = members.indexOf(team[leadIndex]);
+    const payload = assaultPayload(members, Math.max(0, lead), target, {
+      caption: settings.caption,
+      accent: settings.accent,
+    });
     await OBR.broadcast.sendMessage(CHANNEL, payload, { destination });
     return;
   }
@@ -107,6 +212,7 @@ OBR.onReady(async () => {
   $("gm").hidden = false;
 
   const s = loadSettings();
+  buildCards();
   for (const a of ANIMATIONS) $("animation").add(new Option(a.label, a.id));
   $("animation").value = animationById(s.animation).id;
   $("subtitle").value = s.subtitle;
@@ -122,18 +228,6 @@ OBR.onReady(async () => {
   $("reveal").addEventListener("change", () => saveSettings({ reveal: $("reveal").checked }));
   $("caption").addEventListener("change", () => saveSettings({ caption: $("caption").value.trim() || "CURTAIN CALL" }));
   $("accent").addEventListener("input", () => saveSettings({ accent: $("accent").value }));
-  $("attackerSlot").addEventListener("click", () => {
-    if (current) attacker = current;
-    showSlots();
-  });
-  $("targetSlot").addEventListener("click", () => {
-    if (current) target = current;
-    showSlots();
-  });
-  $("swap").addEventListener("click", () => {
-    [attacker, target] = [target, attacker];
-    showSlots();
-  });
   $("play").addEventListener("click", () => play("ALL"));
   $("preview-btn").addEventListener("click", () => play("LOCAL"));
   showSlots();

@@ -43,12 +43,14 @@ The GM chooses the animation from the **Animation** menu in the popover.
 (GM เลือกอนิเมชันจากเมนู **Animation** ในหน้าต่างของ Extension)
 
 - **Crystal Intro:** the original one-token cutscene, synced to music.
-- **Slash Finisher:** token A cuts token B with 24 accelerating strikes, splits it with a final blow,
-  leaps out, lands, and ends on a comic-style card. Sound is synthesised live.
-  (token A ฟัน token B รัว 24 ครั้ง ฟันปิดท้าย กระโดดออกมายืน แล้วจบด้วยการ์ด)
+- **Team Assault:** 1–4 player tokens appear in panes of glass, the glass shatters, and the team rushes
+  1 target in black silhouette. The lead then lands, rises into a pose, and ends on a comic-style card.
+  Every cue follows `public/audio/finisher.mp3`.
+  (ฝั่งผู้เล่น 1–4 ตัวเปิดตัวในกระจก พุ่งโจมตีเป้าหมาย 1 ตัวเป็นเงาดำ แล้วตัวหลักลงมายืนตอนจบ)
 
-To play the Slash Finisher, select two tokens, **attacker first**, then press **▶ Play for everyone**
-or right-click → **Slash Finisher**. Use **⇄** in the popover to swap the roles.
+To play Team Assault, select 2–5 tokens: **the first is the lead and the last is the target**. Then press
+**▶ Play for everyone** or right-click → **Team Assault**. In the popover, click a card to put the selected
+token there, and press **Lead** to choose the main character. Transparent PNG tokens give the best silhouettes.
 
 ## Cue sheet (synced to `public/audio/intro.mp3`)
 
