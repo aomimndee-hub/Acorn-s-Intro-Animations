@@ -37,6 +37,19 @@ GM เลือก token แล้วกดเล่น ผู้เล่นท
   (ติ๊ก “Make the token visible…” เพื่อให้ token ที่ซ่อนอยู่ปรากฏบนแผนที่หลังจบอนิเมชั่น)
 - Each viewer can set their own **volume** in the popover and **Skip** (or press `Esc`).
 
+## Animations / ตัวเลือกอนิเมชัน
+
+The GM chooses the animation from the **Animation** menu in the popover.
+(GM เลือกอนิเมชันจากเมนู **Animation** ในหน้าต่างของ Extension)
+
+- **Crystal Intro:** the original one-token cutscene, synced to music.
+- **Slash Finisher:** token A cuts token B with 24 accelerating strikes, splits it with a final blow,
+  leaps out, lands, and ends on a comic-style card. Sound is synthesised live.
+  (token A ฟัน token B รัว 24 ครั้ง ฟันปิดท้าย กระโดดออกมายืน แล้วจบด้วยการ์ด)
+
+To play the Slash Finisher, select two tokens, **attacker first**, then press **▶ Play for everyone**
+or right-click → **Slash Finisher**. Use **⇄** in the popover to swap the roles.
+
 ## Cue sheet (synced to `public/audio/intro.mp3`)
 
 The audio is the master clock: every frame is drawn from `audio.currentTime`, so picture and
