@@ -8,16 +8,16 @@ const base = process.env.VITE_BASE || "/Acorn-s-Intro-Animations/";
 function manifest() {
   return {
     name: "Acorn's Intro Animations",
-    version: "1.0.0",
+    version: "1.1.0",
     manifest_version: 1,
     description:
-      "Cinematic crystal-shatter intro cutscene that reveals the token the GM picks, synced to music for every player.",
+      "Cinematic token animations for the whole table: a crystal-shatter intro and a two-token slash finisher.",
     action: {
-      title: "Intro Cutscene",
+      title: "Intro Animations",
       icon: `${base}icon.svg`,
       popover: `${base}index.html`,
       width: 340,
-      height: 600,
+      height: 640,
     },
     background_url: `${base}background.html`,
   };
@@ -59,6 +59,7 @@ export default defineConfig({
         popover: resolve(__dirname, "index.html"),
         background: resolve(__dirname, "background.html"),
         intro: resolve(__dirname, "intro.html"),
+        finisher: resolve(__dirname, "finisher.html"),
       },
     },
   },

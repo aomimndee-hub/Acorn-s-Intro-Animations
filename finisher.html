@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Slash Finisher</title>
+    <style>
+      html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
+      canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+      #gate {
+        position: fixed; inset: 0; display: grid; place-items: center; cursor: pointer;
+        background: #120204; color: #fff; font: 900 28px Impact, Tahoma, sans-serif; letter-spacing: 0.08em;
+      }
+      #gate[hidden] { display: none; }
+      #skip {
+        position: fixed; right: 18px; bottom: 16px; z-index: 2;
+        background: rgba(0,0,0,0.45); color: #fff; border: 1px solid rgba(255,255,255,0.35);
+        border-radius: 999px; padding: 6px 14px; font: 500 13px system-ui, sans-serif;
+        opacity: 0.3; cursor: pointer; transition: opacity 0.2s;
+      }
+      #skip:hover, #skip:focus-visible { opacity: 1; }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <div id="gate"><div id="gateText">loading…</div></div>
+    <button id="skip" title="Skip (Esc)">Skip ›</button>
+    <script type="module" src="/src/finisher.js"></script>
+  </body>
+</html>

@@ -17,28 +17,60 @@
       </header>
 
       <section id="gm" hidden>
-        <div class="preview" id="preview">
-          <div class="ring"></div>
-          <img id="previewImg" alt="" />
-          <span id="previewEmpty">No token selected</span>
+        <label class="field">
+          <span>Animation</span>
+          <select id="animation"></select>
+          <small id="animDesc"></small>
+        </label>
+
+        <div id="crystalFields" class="stack">
+          <div class="preview" id="preview">
+            <div class="ring"></div>
+            <img id="previewImg" alt="" />
+            <span id="previewEmpty">No token selected</span>
+          </div>
+
+          <label class="field">
+            <span>Name</span>
+            <input id="name" type="text" maxlength="40" placeholder="Token name" />
+          </label>
+          <label class="field">
+            <span>Subtitle <em>(optional)</em></span>
+            <input id="subtitle" type="text" maxlength="60" placeholder="e.g. The Last Fragment" />
+          </label>
+          <label class="check">
+            <input id="reveal" type="checkbox" />
+            <span>Make the token visible on the map when the intro ends</span>
+          </label>
         </div>
 
-        <label class="field">
-          <span>Name</span>
-          <input id="name" type="text" maxlength="40" placeholder="Token name" />
-        </label>
-        <label class="field">
-          <span>Subtitle <em>(optional)</em></span>
-          <input id="subtitle" type="text" maxlength="60" placeholder="e.g. The Last Fragment" />
-        </label>
-        <label class="check">
-          <input id="reveal" type="checkbox" />
-          <span>Make the token visible on the map when the intro ends</span>
-        </label>
+        <div id="slashFields" class="stack" hidden>
+          <div class="versus">
+            <button id="attackerSlot" class="slot" type="button">
+              <small>Attacker</small>
+              <img id="attackerImg" alt="" hidden />
+              <span id="attackerName"></span>
+            </button>
+            <button id="swap" class="ghost swap" type="button" title="Swap attacker and target" aria-label="Swap attacker and target">⇄</button>
+            <button id="targetSlot" class="slot" type="button">
+              <small>Target</small>
+              <img id="targetImg" alt="" hidden />
+              <span id="targetName"></span>
+            </button>
+          </div>
+          <label class="field">
+            <span>Ending text</span>
+            <input id="caption" type="text" maxlength="28" placeholder="CURTAIN CALL" />
+          </label>
+          <label class="field color">
+            <span>Main color</span>
+            <input id="accent" type="color" />
+          </label>
+        </div>
 
         <button id="play" class="primary" disabled>▶ Play for everyone</button>
         <button id="preview-btn" class="ghost" disabled>Preview only for me</button>
-        <p class="hint">Tip: you can also right-click a token → <b>Play Intro Cutscene</b>.</p>
+        <p class="hint" id="hint"></p>
       </section>
 
       <section id="player" hidden>
