@@ -52,6 +52,9 @@ The GM chooses the animation from the **Animation** menu in the popover.
   rides an anchor inside a magic circle, tumbles on the beat between film strips, clings to a swinging
   anchor, and falls through the sky. The title card text (default `ANCHOR`) can be changed in the popover.
   Every cut follows `public/audio/anchor.mp3` (about 190 BPM; the beat grid drives the film-strip section).
+  The anchor, its chain, the magic circle, the towers and the flying-V guitar are real 3D models
+  (`src/anchor/three.js`, Three.js) with two-tone blue/white shading; the token stays on the 2D layer so
+  tokens hosted without CORS headers still work. Without WebGL, 2D drawings stand in.
   (อนิเมชันโทนน้ำเงิน-ขาว token 1 ตัว ชื่อ token ขึ้นตอนเปิด แล้วไปตามฉากใต้น้ำ ฝน ชายหาด สมอ ฟิล์ม และท้องฟ้า)
 
 To play All Out Attack, select 2–5 tokens: **the first is the lead and the last is the target**. Then press

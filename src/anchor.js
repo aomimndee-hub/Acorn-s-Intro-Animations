@@ -1,6 +1,7 @@
 import OBR from "@owlbear-rodeo/sdk";
 import { BASE, MODAL_ID, loadSettings } from "./shared.js";
-import { T, buildTokenSet, render } from "./anchor/scene.js";
+import { T, buildTokenSet, drawCircleTexture, render } from "./anchor/scene.js";
+import { create3D } from "./anchor/three.js";
 
 const params = new URLSearchParams(location.search);
 const inOBR = params.has("obrref");
@@ -55,6 +56,7 @@ function resize() {
   state.W = W;
   state.H = H;
   state.U = Math.min(W, H) / 720;
+  state.dpr3 = Math.min(dpr, 1.5);
 }
 
 function loadToken(url, mime) {
@@ -190,9 +192,15 @@ async function boot() {
 
   const [img] = await Promise.all([loadToken(payload.imageUrl, payload.mime), loadFonts(), waitForAudio()]);
   state.tok = buildTokenSet(img || fallbackToken());
+  // 3D props (anchor, chain, magic circle, guitar); the 2D versions stand in without WebGL.
+  try {
+    state.three = create3D(drawCircleTexture);
+  } catch {
+    state.three = null;
+  }
 
   // Warm every cached layer so the first frames of each shot never hitch.
-  for (const t of [3.5, 16.6, 17.5, 39]) render(ctx, state, t);
+  for (const t of [3.5, 16.6, 17.5, 20.8, 25, 34, 39]) render(ctx, state, t);
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, state.W, state.H);
 

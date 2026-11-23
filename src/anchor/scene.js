@@ -121,6 +121,18 @@ export function buildTokenSet(img) {
   return { size: S, base, duo, sea, blue: tint(base, BLUE), white: tint(base, "#fff"), navy: tint(base, NAVY) };
 }
 
+/** Token as a card turning in 3D: narrowed by cos(yaw) with a slight shear. */
+function tok3(ctx, img, x, y, h, rot, yaw, alpha = 1) {
+  if (!img || alpha <= 0.01) return;
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  ctx.transform(Math.cos(yaw), Math.sin(yaw) * 0.14, 0, 1, 0, 0);
+  ctx.drawImage(img, -h / 2, -h / 2, h, h);
+  ctx.restore();
+}
+
 function tok(ctx, img, x, y, h, rot = 0, flip = 1, alpha = 1) {
   if (!img || alpha <= 0.01) return;
   ctx.save();
@@ -228,8 +240,8 @@ function cloudLayer(seed) {
     const py = S * (0.12 + r() * 0.25);
     const rr = S * (0.04 + r() * 0.1);
     const g = x.createRadialGradient(px, py, 0, px, py, rr);
-    g.addColorStop(0, "rgba(255,255,255,0.9)");
-    g.addColorStop(0.6, "rgba(255,255,255,0.55)");
+    g.addColorStop(0, "rgba(255,255,255,0.95)");
+    g.addColorStop(0.82, "rgba(255,255,255,0.92)");
     g.addColorStop(1, "rgba(255,255,255,0)");
     x.fillStyle = g;
     x.beginPath();
@@ -409,6 +421,9 @@ function chain(ctx, x0, y0, x1, y1, link, color) {
   ctx.restore();
 }
 
+/** Draws the magic circle at rest; used as the 3D disc's texture. */
+export const drawCircleTexture = (ctx, x, y, r) => magicCircle(ctx, x, y, r, 0, BLUE);
+
 function magicCircle(ctx, x, y, r, t, color) {
   ctx.save();
   ctx.translate(x, y);
@@ -481,16 +496,23 @@ function umbrella(ctx, x, y, w, rot) {
 
 function waveform(ctx, x0, x1, cy, amp, t, color) {
   ctx.save();
-  ctx.fillStyle = color;
-  const step = 2;
+  const g = ctx.createLinearGradient(0, cy - amp * 1.6, 0, cy + amp * 1.6);
+  g.addColorStop(0, "rgba(74,56,255,0)");
+  g.addColorStop(0.32, "rgba(74,56,255,0.55)");
+  g.addColorStop(0.5, color);
+  g.addColorStop(0.68, "rgba(74,56,255,0.55)");
+  g.addColorStop(1, "rgba(74,56,255,0)");
+  ctx.fillStyle = g;
+  const step = 1.6;
   const frame = Math.floor(t * 30);
   for (let x = x0; x < x1; x += step) {
     const i = Math.floor(x / step);
     const r = hash(i * 7 + frame * 131);
-    const env = 0.35 + 0.65 * Math.sin(((x - x0) / (x1 - x0)) * Math.PI);
-    const h = amp * (0.12 + 0.88 * r * r) * env;
-    ctx.globalAlpha = 0.45 + 0.55 * r;
-    ctx.fillRect(x, cy - h, 1.1, h * 2);
+    const r2 = hash(i * 13 + frame * 71);
+    const env = 0.45 + 0.55 * Math.sin(((x - x0) / (x1 - x0)) * Math.PI);
+    const h = amp * (0.2 + 1.4 * r * r * r + 0.3 * r2) * env;
+    ctx.globalAlpha = 0.35 + 0.6 * r2;
+    ctx.fillRect(x, cy - h, 1, h * 2);
   }
   ctx.restore();
 }
@@ -805,37 +827,30 @@ function shotSky(ctx, st, t) {
   const lt = t - T.sky;
   fill(ctx, W, H, WHITE);
   const split = easeInCubic(prog(t, T.split, T.rain));
+  const three = st.three;
+  if (three) three.city(W, H, st.dpr3, lt);
   const drawCity = () => {
-    ctx.save();
-    ctx.translate(W / 2, H / 2);
-    ctx.rotate(-0.32 + lt * 0.02);
-    ctx.scale(1.15 + lt * 0.04, 1.15 + lt * 0.04);
-    ctx.translate(-W / 2, -H / 2);
-    ctx.fillStyle = BLUE;
-    // main tower with stepped left edge
-    ctx.beginPath();
-    ctx.moveTo(W * 0.2, -H * 0.6);
-    ctx.lineTo(W * 0.78, -H * 0.6);
-    ctx.lineTo(W * 0.74, H * 1.5);
-    ctx.lineTo(W * 0.3, H * 1.5);
-    for (let i = 0; i < 9; i++) {
-      const y = H * (1.4 - i * 0.2);
-      ctx.lineTo(W * (0.3 - (i % 2) * 0.05), y);
-      ctx.lineTo(W * (0.3 - (i % 2) * 0.05), y - H * 0.1);
+    if (three) {
+      ctx.drawImage(three.canvas, 0, 0, W, H);
+    } else {
+      ctx.save();
+      ctx.translate(W / 2, H / 2);
+      ctx.rotate(-0.32 + lt * 0.02);
+      ctx.scale(1.15 + lt * 0.04, 1.15 + lt * 0.04);
+      ctx.translate(-W / 2, -H / 2);
+      ctx.fillStyle = BLUE;
+      ctx.beginPath();
+      ctx.moveTo(W * 0.2, -H * 0.6);
+      ctx.lineTo(W * 0.78, -H * 0.6);
+      ctx.lineTo(W * 0.74, H * 1.5);
+      ctx.lineTo(W * 0.3, H * 1.5);
+      ctx.closePath();
+      ctx.fill();
+      for (const [x, w] of [[0.83, 0.07], [0.95, 0.05], [0.06, 0.03]]) ctx.fillRect(W * x, -H, W * w, H * 3);
+      ctx.restore();
     }
-    ctx.closePath();
-    ctx.fill();
-    // side slabs
-    for (const [x, w] of [[0.83, 0.07], [0.95, 0.05], [0.06, 0.03]]) ctx.fillRect(W * x, -H, W * w, H * 3);
-    // dashed windows
-    ctx.fillStyle = WHITE;
-    for (let i = 0; i < 12; i++) ctx.fillRect(W * 0.795, H * (-0.4 + i * 0.16), W * 0.012, H * 0.08);
-    // ledges on the far left
-    ctx.fillStyle = BLUE;
-    for (let i = 0; i < 7; i++) ctx.fillRect(-W * 0.05, H * (0.05 + i * 0.12), W * 0.12, H * 0.012);
-    ctx.restore();
     // kana and title
-    text(ctx, st.kana, W * 0.62, H * 0.06, H * 0.045, { font: JP, color: WHITE, spacing: 0.04 });
+    text(ctx, st.kana, W * 0.62, H * 0.07, H * 0.045, { font: JP, color: three ? BLUE : WHITE, spacing: 0.04 });
     text(ctx, "SKY", W * 0.52, H * 0.42, H * 0.17, { style: "italic", color: "#06021c", spacing: -0.02 });
     // the token as a white cut-out
     tok(ctx, st.tok.white, W * 0.5, H * 0.6, H * 0.26, Math.sin(t * 2) * 0.04);
@@ -1051,16 +1066,28 @@ function shotEmblem(ctx, st, t) {
     }
     ctx.restore();
   }
-  const punch = burst ? 1.12 + 0.1 * Math.exp(-(t - T.burst) / 0.06) : 1 + lt * 0.03;
-  const bob = Math.sin(t * 3) * H * 0.008;
-  ctx.save();
-  ctx.translate(W / 2, H * 0.5 + bob);
-  ctx.scale(punch, punch);
-  ctx.rotate(-0.08 + Math.sin(t * 1.5) * 0.03);
-  magicCircle(ctx, -W * 0.03, -H * 0.12, H * 0.17, t, BLUE);
-  drawAnchor(ctx, W * 0.03, H * 0.1, H * 0.3, -1.25, BLUE);
-  tok(ctx, st.tok.blue, -W * 0.02, -H * 0.11, H * 0.28, 0.05);
-  ctx.restore();
+  const punchK = burst ? 1 + 0.6 * Math.exp(-(t - T.burst) / 0.07) : 0;
+  const three = st.three;
+  if (three) {
+    const [sx, sy] = three.emblem(W, H, st.dpr3, t, burst ? 0.55 + 0.45 * punchK : lt * 0.15);
+    ctx.drawImage(three.canvas, 0, 0, W, H);
+    const bob = Math.sin(t * 3) * H * 0.006;
+    const th = H * (burst ? 0.34 : 0.3);
+    for (const [ox, oy] of [[-2, 0], [2, 0], [0, -2], [0, 2]]) {
+      tok(ctx, st.tok.white, sx + ox * U, sy - th * 0.3 + bob + oy * U, th, -0.12);
+    }
+    tok(ctx, st.tok.duo, sx, sy - th * 0.3 + bob, th, -0.12);
+  } else {
+    const punch = burst ? 1.12 + 0.1 * Math.exp(-(t - T.burst) / 0.06) : 1 + lt * 0.03;
+    ctx.save();
+    ctx.translate(W / 2, H * 0.5);
+    ctx.scale(punch, punch);
+    ctx.rotate(-0.08 + Math.sin(t * 1.5) * 0.03);
+    magicCircle(ctx, -W * 0.03, -H * 0.12, H * 0.17, t, BLUE);
+    drawAnchor(ctx, W * 0.03, H * 0.1, H * 0.3, -1.25, BLUE);
+    tok(ctx, st.tok.blue, -W * 0.02, -H * 0.11, H * 0.28, 0.05);
+    ctx.restore();
+  }
 }
 
 function shotCollide(ctx, st, t) {
@@ -1116,35 +1143,19 @@ function shotFilm(ctx, st, t) {
 
   if (!inAnchor) {
     waveform(ctx, strip * 1.25, W - strip * 1.25, H * 0.5, H * (0.13 + 0.09 * pulse), t, "#4a38ff");
-    // the token tumbling: a new pose every beat, eased in fast
-    const pose = (k) => ({
-      rot: (hash(k * 3) - 0.5) * 1.6,
-      flip: hash(k * 5) > 0.5 ? 1 : -1,
-      dx: (hash(k * 7) - 0.5) * W * 0.04,
-      dy: (hash(k * 11) - 0.5) * H * 0.05,
-      s: 0.9 + hash(k * 13) * 0.25,
-    });
-    const a = pose(b - 1);
-    const c = pose(b);
-    const e = easeOutExpo(clamp((((t - PHASE) % BEAT) + BEAT) % BEAT / 0.1));
-    const rot = lerp(a.rot, c.rot, e);
-    const dx = lerp(a.dx, c.dx, e);
-    const dy = lerp(a.dy, c.dy, e);
-    const s = lerp(a.s, c.s, e);
-    tok(ctx, st.tok.duo, W / 2 + dx, H * 0.5 + dy, H * 0.34 * s, rot, c.flip);
-    // white slash glints on strong beats
-    if (b % 2 === 0) {
-      const g = 1 - e;
-      ctx.save();
-      ctx.translate(W / 2 + dx, H * 0.5 + dy);
-      ctx.rotate(rot - 0.7);
-      ctx.fillStyle = `rgba(255,255,255,${0.9 * g})`;
-      ctx.beginPath();
-      ctx.moveTo(-H * 0.2, 0);
-      ctx.lineTo(H * 0.2, -H * 0.012);
-      ctx.lineTo(H * 0.2, H * 0.012);
-      ctx.fill();
-      ctx.restore();
+    // the token floats and turns slowly, holding the guitar
+    const x = W / 2 + Math.sin(lt * 0.5) * W * 0.03;
+    const y = H * 0.5 + Math.sin(lt * 0.8 + 0.6) * H * 0.03;
+    const yaw = Math.sin(lt * 0.42) * 0.95;
+    const roll = Math.sin(lt * 0.31) * 0.28 - 0.08;
+    const size = H * 0.36 * (1 + 0.015 * pulse);
+    tok3(ctx, st.tok.duo, x, y, size, roll, yaw);
+    if (st.three) {
+      st.three.guitar(W, H, st.dpr3, {
+        x: x - size * 0.04, y: y + size * 0.12, size: size * 1.3,
+        yaw: yaw * 0.8 - 0.35, roll: -roll - 0.95, pitch: 0.45 + Math.sin(lt * 0.5) * 0.12,
+      });
+      ctx.drawImage(st.three.canvas, 0, 0, W, H);
     }
   } else {
     const at = t - T.anchor;
@@ -1152,20 +1163,32 @@ function shotFilm(ctx, st, t) {
     const settle = Math.exp(-at * 2.2) * Math.sin(at * 9) * 0.05;
     const scale = lerp(1.35, 1, easeOutCubic(prog(at, 0, 1.2)));
     const swing = Math.sin(at * 1.7) * 0.06 * (1 - Math.exp(-at)) + settle;
-    const pivotX = W / 2;
-    const pivotY = -H * 0.05;
-    const len = lerp(-H * 0.3, H * 0.6, drop) * (scale > 1 ? 1 / scale : 1) + H * 0.05;
-    const ax = pivotX + Math.sin(swing) * len;
-    const ay = pivotY + Math.cos(swing) * len;
-    const s = H * 0.2 * scale;
-    chain(ctx, pivotX, pivotY - H * 0.2, ax, ay - s * 0.95, H * 0.028 * scale, BLUE);
-    drawAnchor(ctx, ax, ay, s, -swing, BLUE);
-    tok(ctx, st.tok.blue, ax + s * 0.05, ay + s * 0.18, s * 1.05, -swing + 0.15);
-    // a white outline keeps the token readable against the anchor
-    ctx.save();
-    ctx.globalCompositeOperation = "destination-over";
-    tok(ctx, st.tok.white, ax + s * 0.05, ay + s * 0.18, s * 1.12, -swing + 0.15);
-    ctx.restore();
+    if (st.three) {
+      // pendulum hung from a point far above the frame
+      const pivotY = -H * 0.45;
+      const len = lerp(H * 0.4, H * 1.05, drop) + settle * H * 0.4;
+      const ax = W / 2 + Math.sin(swing) * len;
+      const ay = pivotY + Math.cos(swing) * len;
+      const yaw = Math.sin(at * 0.55) * 0.75 + 0.2;
+      const [tx, ty] = st.three.hang(W, H, st.dpr3, { x: ax, y: ay, swing, yaw, scale: 1.05 * scale });
+      ctx.drawImage(st.three.canvas, 0, 0, W, H);
+      // white outline first so the blue token reads against the blue anchor
+      const th = H * 0.27 * scale;
+      for (const [ox, oy] of [[-2, 0], [2, 0], [0, -2], [0, 2]]) {
+        tok3(ctx, st.tok.white, tx + ox * st.U, ty + oy * st.U, th, Math.PI - swing, yaw * 0.6);
+      }
+      tok3(ctx, st.tok.duo, tx, ty, th, Math.PI - swing, yaw * 0.6);
+    } else {
+      const pivotX = W / 2;
+      const pivotY = -H * 0.05;
+      const len = lerp(-H * 0.3, H * 0.6, drop) * (scale > 1 ? 1 / scale : 1) + H * 0.05;
+      const ax = pivotX + Math.sin(swing) * len;
+      const ay = pivotY + Math.cos(swing) * len;
+      const s = H * 0.2 * scale;
+      chain(ctx, pivotX, pivotY - H * 0.2, ax, ay - s * 0.95, H * 0.028 * scale, BLUE);
+      drawAnchor(ctx, ax, ay, s, -swing, BLUE);
+      tok(ctx, st.tok.blue, ax + s * 0.05, ay + s * 0.18, s * 1.05, -swing + 0.15);
+    }
   }
   ctx.restore();
 
