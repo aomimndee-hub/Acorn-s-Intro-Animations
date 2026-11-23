@@ -1,6 +1,7 @@
 import OBR, { isImage } from "@owlbear-rodeo/sdk";
 import {
-  ANIMATIONS, CHANNEL, anchorPayload, animationById, assaultPayload, loadSettings, payloadFor, saveSettings, tokenName,
+  ANIMATIONS, CHANNEL, anchorPayload, animationById, assaultPayload, compassPayload, loadSettings, payloadFor, saveSettings,
+  tokenName,
 } from "./shared.js";
 
 const $ = (id) => document.getElementById(id);
@@ -32,7 +33,7 @@ function updateControls() {
   const anchor = mode() === "anchor";
   $("crystalFields").hidden = assault;
   $("assaultFields").hidden = !assault;
-  $("subtitleField").hidden = anchor;
+  $("subtitleField").hidden = anchor || mode() === "compass";
   $("titleField").hidden = !anchor;
   $("animDesc").textContent = animationById(mode()).description;
   $("hint").innerHTML = assault
@@ -188,6 +189,16 @@ async function play(destination) {
     return;
   }
   if (!current) return;
+  if (mode() === "compass") {
+    const settings = saveSettings({ reveal: $("reveal").checked });
+    const payload = compassPayload(current, {
+      name: $("name").value.trim() || tokenName(current),
+      reveal: destination === "ALL" && settings.reveal,
+      revealBy: OBR.player.id,
+    });
+    await OBR.broadcast.sendMessage(CHANNEL, payload, { destination });
+    return;
+  }
   if (mode() === "anchor") {
     const settings = saveSettings({
       title: $("title").value.trim() || "ANCHOR",

@@ -30,8 +30,8 @@ GM เลือก token แล้วกดเล่น ผู้เล่นท
 - **Popover:** click the crystal icon in the toolbar, select a token on the map, then
   **▶ Play for everyone**. **Preview only for me** plays it on your screen only.
   (กดไอคอนคริสตัล → เลือก token → กด Play for everyone)
-- **Right-click:** right-click any image token → **Break Through** or **Anchor** (GM only).
-  (คลิกขวาที่ token → Break Through หรือ Anchor)
+- **Right-click:** right-click any image token → **Break Through**, **Anchor** or **Compass** (GM only).
+  (คลิกขวาที่ token → Break Through, Anchor หรือ Compass)
 - **Name / subtitle:** the name defaults to the token's label. You can rename it and add a subtitle.
 - **Reveal on map:** if ticked, a hidden token becomes visible on the map when the intro ends.
   (ติ๊ก “Make the token visible…” เพื่อให้ token ที่ซ่อนอยู่ปรากฏบนแผนที่หลังจบอนิเมชั่น)
@@ -55,6 +55,13 @@ The GM chooses the animation from the **Animation** menu in the popover.
   The anchor, its chain, the magic circle, the towers and the flying-V guitar are real 3D models
   (`src/anchor/three.js`, Three.js) with two-tone blue/white shading; the token stays on the 2D layer so
   tokens hosted without CORS headers still work. Without WebGL, 2D drawings stand in.
+- **Compass:** a 47 s cutscene for one token in 3D. Chrome serif lyrics (HOLD / ON / TIGHT / MY COMPASS is
+  CURIOSITY …) are real 3D text with a bloom pass. The token rises from a glowing vortex in a valley of rocks,
+  appears on the face of a 3D pocket compass during the tunnel dive and the close-up, is bound by a golden
+  rope ("you and me"), breaks free in a burst of lightning ("let us be FREE"), and ends under a four-point
+  star over a rising and falling tide ("high tide / low tide") before an old-TV switch-off.
+  Code: `src/compass/gl.js` (3D) and `src/compass/scene.js` (timeline, 2D effects), music `public/audio/compass.mp3`.
+  (อนิเมชัน 3D ตัวหนังสือโครเมียม หุบเขาน้ำวน เข็มทิศ 3D ที่มี token อยู่บนหน้าปัด เชือกทองมัด token แล้วสายฟ้าปลดปล่อย และฉากดาวกับน้ำขึ้นน้ำลงตอนจบ)
   (อนิเมชันโทนน้ำเงิน-ขาว token 1 ตัว ชื่อ token ขึ้นตอนเปิด แล้วไปตามฉากใต้น้ำ ฝน ชายหาด สมอ ฟิล์ม และท้องฟ้า)
 
 To play All Out Attack, select 2–5 tokens: **the first is the lead and the last is the target**. Then press

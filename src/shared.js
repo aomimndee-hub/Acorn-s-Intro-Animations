@@ -34,6 +34,12 @@ export const ANIMATIONS = [
     description: "Blue and white lyric cutscene: one token falls through sea, rain, film and sky (about 46 s).",
     page: "anchor.html",
   },
+  {
+    id: "compass",
+    label: "Compass",
+    description: "3D chrome lyrics, a vortex valley and a pocket compass; the token is bound by a golden rope and breaks free (about 47 s).",
+    page: "compass.html",
+  },
 ];
 
 // "slash" was the previous name of the two-token finisher.
@@ -94,6 +100,21 @@ export function assaultPayload(team, leadIndex, target, overrides = {}) {
     target: tokenInfo(target),
     caption: overrides.caption ?? settings.caption,
     accent: overrides.accent ?? settings.accent,
+    nonce: Math.random().toString(36).slice(2),
+  };
+}
+
+/** Payload for Compass: one token and its name. */
+export function compassPayload(item, overrides = {}) {
+  const settings = loadSettings();
+  return {
+    animation: "compass",
+    itemId: item.id,
+    imageUrl: item.image?.url || "",
+    mime: item.image?.mime || "",
+    name: overrides.name ?? tokenName(item),
+    reveal: overrides.reveal ?? settings.reveal,
+    revealBy: overrides.revealBy || "",
     nonce: Math.random().toString(36).slice(2),
   };
 }
