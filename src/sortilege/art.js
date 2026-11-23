@@ -21,519 +21,731 @@ function stipple(x, r, x0, y0, w, h, n, size = 1.6) {
   }
 }
 
-/** Acanthus-style leaf curl. */
-function leaf(x, cx, cy, s, dir) {
+// ---- shared engraving strokes ---------------------------------------------------
+
+function line(x, pts, w) {
+  x.lineWidth = w;
   x.beginPath();
-  x.moveTo(cx, cy + s);
-  x.bezierCurveTo(cx + dir * s * 0.9, cy + s * 0.4, cx + dir * s * 0.9, cy - s * 0.6, cx + dir * s * 0.2, cy - s);
-  x.bezierCurveTo(cx + dir * s * 0.55, cy - s * 0.4, cx + dir * s * 0.25, cy + s * 0.2, cx, cy + s);
-  x.stroke();
-  x.beginPath();
-  x.arc(cx + dir * s * 0.35, cy - s * 0.75, s * 0.22, 0, TAU);
+  pts.forEach(([px, py], i) => (i ? x.lineTo(px, py) : x.moveTo(px, py)));
   x.stroke();
 }
 
-export function column() {
-  const W = 300;
-  const H = 1500;
-  const c = makeCanvas(W, H);
-  const x = c.getContext("2d");
-  x.scale(1, 1);
-  pen(x, 7);
-  // abacus and capital
-  x.strokeRect(40, 40, W - 80, 40);
+/** Parallel hatch strokes inside a band, for engraved shading. */
+function hatch(x, x0, y0, x1, y1, n, len, ang, w = 1.6) {
+  x.lineWidth = w;
   x.beginPath();
-  x.moveTo(60, 80);
-  x.bezierCurveTo(40, 150, 90, 220, 100, 250);
-  x.lineTo(W - 100, 250);
-  x.bezierCurveTo(W - 90, 220, W - 40, 150, W - 60, 80);
-  x.stroke();
-  pen(x, 5);
-  for (let i = 0; i < 5; i++) leaf(x, 85 + i * 32, 160, 34, i % 2 ? 1 : -1);
-  x.beginPath();
-  x.moveTo(95, 255);
-  x.lineTo(W - 95, 255);
-  x.moveTo(95, 272);
-  x.lineTo(W - 95, 272);
-  x.stroke();
-  // fluted shaft
-  pen(x, 7);
-  for (const off of [0, 18, 34]) {
-    x.beginPath();
-    x.moveTo(100 + off, 275);
-    x.lineTo(100 + off - 6, H);
-    x.moveTo(W - 100 - off, 275);
-    x.lineTo(W - 100 - off + 6, H);
-    x.stroke();
+  for (let i = 0; i < n; i++) {
+    const k = n === 1 ? 0.5 : i / (n - 1);
+    const px = x0 + (x1 - x0) * k;
+    const py = y0 + (y1 - y0) * k;
+    x.moveTo(px, py);
+    x.lineTo(px + Math.cos(ang) * len, py + Math.sin(ang) * len);
   }
-  // vaulting ribs springing from the top
-  pen(x, 4);
-  x.beginPath();
-  x.moveTo(50, 40);
-  x.quadraticCurveTo(10, -60, -40, -140);
-  x.moveTo(W - 50, 40);
-  x.quadraticCurveTo(W - 10, -60, W + 40, -140);
   x.stroke();
-  return c;
 }
 
-export function gothicWindow() {
-  const W = 1100;
-  const H = 1400;
-  const c = makeCanvas(W, H);
-  const x = c.getContext("2d");
-  const r = rng(17);
-  const arch = (l, rr, top, base, w) => {
-    const span = rr - l;
-    x.beginPath();
-    x.moveTo(l, base);
-    x.lineTo(l, top + span * 0.55);
-    x.quadraticCurveTo(l, top, l + span / 2, top - span * 0.05);
-    x.quadraticCurveTo(rr, top, rr, top + span * 0.55);
-    x.lineTo(rr, base);
-    x.lineWidth = w;
-    x.stroke();
-  };
-  pen(x, 10);
-  arch(210, 1000, 130, 1350, 11);
-  arch(250, 960, 175, 1340, 6);
-  // lancets with a mullion between them
-  pen(x, 8);
-  arch(290, 600, 470, 1290, 8);
-  arch(640, 930, 470, 1290, 8);
-  arch(310, 580, 500, 1290, 4);
-  arch(660, 910, 500, 1290, 4);
-  // tracery: a quatrefoil in a roundel
+/** Acanthus leaf with a central vein and serrated lobes. */
+function acanthus(x, cx, by, h, w, lean = 0) {
+  const tip = [cx + lean * h * 0.3, by - h];
   x.beginPath();
-  x.arc(615, 330, 120, 0, TAU);
-  x.lineWidth = 5;
+  x.moveTo(cx - w / 2, by);
+  for (let i = 1; i <= 4; i++) {
+    const k = i / 4;
+    const lx = cx - (w / 2) * (1 - k * 0.85) + lean * h * 0.3 * k;
+    const ly = by - h * k;
+    x.quadraticCurveTo(lx - w * 0.22, ly + h * 0.08, lx, ly);
+  }
+  x.lineTo(tip[0], tip[1]);
+  for (let i = 4; i >= 1; i--) {
+    const k = i / 4;
+    const lx = cx + (w / 2) * (1 - k * 0.85) + lean * h * 0.3 * k;
+    const ly = by - h * k;
+    x.lineTo(lx, ly);
+    x.quadraticCurveTo(lx + w * 0.22, ly + h * 0.08, cx + (w / 2) * (1 - (k - 0.25) * 0.85) + lean * h * 0.3 * (k - 0.25), by - h * (k - 0.25));
+  }
+  x.closePath();
   x.stroke();
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * TAU + Math.PI / 4;
+  // vein and side veins
+  x.beginPath();
+  x.moveTo(cx, by);
+  x.quadraticCurveTo(cx + lean * h * 0.1, by - h * 0.5, tip[0], tip[1] + h * 0.08);
+  x.stroke();
+  for (let i = 1; i < 4; i++) {
+    const k = i / 4;
+    const vx = cx + lean * h * 0.3 * k;
+    const vy = by - h * k;
     x.beginPath();
-    x.arc(615 + Math.cos(a) * 55, 330 + Math.sin(a) * 55, 52, 0, TAU);
-    x.lineWidth = 3;
+    x.moveTo(vx, vy + h * 0.06);
+    x.lineTo(vx - w * 0.25 * (1 - k * 0.6), vy - h * 0.02);
+    x.moveTo(vx, vy + h * 0.06);
+    x.lineTo(vx + w * 0.25 * (1 - k * 0.6), vy - h * 0.02);
     x.stroke();
   }
-  // vines curling over the tracery
-  pen(x, 5);
-  for (let i = 0; i < 9; i++) {
-    const sx = 300 + r() * 600;
-    const sy = 200 + r() * 260;
-    x.beginPath();
-    x.moveTo(sx, sy);
-    x.bezierCurveTo(sx + (r() - 0.5) * 160, sy + (r() - 0.5) * 120, sx + (r() - 0.5) * 160, sy + (r() - 0.5) * 120, sx + (r() - 0.5) * 140, sy + (r() - 0.5) * 140);
-    x.stroke();
-  }
-  // glass glints
-  pen(x, 2);
-  for (let i = 0; i < 14; i++) {
-    const lx = 320 + (i % 2) * 340 + r() * 220;
-    const ly = 650 + r() * 560;
-    x.beginPath();
-    x.moveTo(lx, ly);
-    x.lineTo(lx + 40 + r() * 50, ly - 70 - r() * 60);
-    x.stroke();
-  }
-  // brick quoins down the left side with stippled shading
-  pen(x, 6);
-  for (let i = 0; i < 12; i++) {
-    const by = 300 + i * 88;
-    const bw = i % 2 ? 120 : 90;
-    x.strokeRect(210 - bw, by, bw, 80);
-    stipple(x, r, 210 - bw + 6, by + 6, bw * 0.45, 68, 26);
-  }
-  // sill
-  x.strokeRect(150, 1340, 900, 40);
-  stipple(x, r, 160, 1345, 880, 30, 120, 1.4);
-  return c;
 }
 
-export function lantern() {
-  const W = 520;
-  const H = 1000;
-  const c = makeCanvas(W, H);
-  const x = c.getContext("2d");
-  pen(x, 8);
-  // scroll bracket
+/** Spiral volute (scroll) ending a curve. */
+function volute(x, cx, cy, r, turns, dir = 1, w = 3) {
+  x.lineWidth = w;
   x.beginPath();
-  x.moveTo(20, 60);
-  x.bezierCurveTo(160, 20, 260, 60, 260, 150);
-  x.stroke();
-  x.beginPath();
-  for (let a = 0; a < TAU * 1.6; a += 0.1) {
-    const rr = 38 - a * 5;
-    const px = 95 + Math.cos(a) * rr;
-    const py = 95 + Math.sin(a) * rr;
+  for (let a = 0; a <= turns * TAU; a += 0.12) {
+    const rr = r * (1 - a / (turns * TAU) * 0.85);
+    const px = cx + Math.cos(a * dir) * rr;
+    const py = cy + Math.sin(a * dir) * rr;
     if (a === 0) x.moveTo(px, py);
     else x.lineTo(px, py);
   }
   x.stroke();
-  // chain rod
-  x.beginPath();
-  x.moveTo(260, 150);
-  x.lineTo(260, 420);
-  x.stroke();
-  for (let y = 170; y < 410; y += 34) {
-    x.beginPath();
-    x.ellipse(260, y, 10, 15, 0, 0, TAU);
-    x.stroke();
+}
+
+// ---- chapter I: sepia architecture ---------------------------------------------------
+
+export function column() {
+  const W = 420;
+  const H = 1700;
+  const c = makeCanvas(W, H);
+  const x = c.getContext("2d");
+  const r = rng(5);
+  pen(x, 4);
+  const cx = W / 2;
+  // pointed vault ribs springing from the abacus (double lines)
+  for (const side of [-1, 1]) {
+    for (const off of [0, 22, 40]) {
+      x.lineWidth = off === 22 ? 2.5 : 5;
+      x.beginPath();
+      x.moveTo(cx + side * (120 - off), 300);
+      x.bezierCurveTo(cx + side * (140 - off), 200, cx + side * (150 - off * 0.6), 90, cx + side * (210 - off * 0.4), -20);
+      x.stroke();
+    }
   }
-  // crown
+  // abacus: two slabs
+  pen(x, 5);
+  x.strokeRect(cx - 150, 290, 300, 26);
+  x.strokeRect(cx - 138, 316, 276, 22);
+  // bell of the capital with corner volutes
   x.beginPath();
-  x.moveTo(180, 470);
-  for (let i = 0; i <= 6; i++) x.lineTo(180 + i * 26.6, i % 2 ? 430 : 470);
+  x.moveTo(cx - 120, 338);
+  x.bezierCurveTo(cx - 135, 420, cx - 95, 470, cx - 78, 500);
+  x.lineTo(cx + 78, 500);
+  x.bezierCurveTo(cx + 95, 470, cx + 135, 420, cx + 120, 338);
   x.stroke();
-  x.strokeRect(180, 470, 160, 40);
-  x.strokeRect(195, 510, 130, 60);
-  for (let i = 0; i < 6; i++) {
-    x.beginPath();
-    x.moveTo(205 + i * 22, 515);
-    x.lineTo(205 + i * 22, 565);
-    x.stroke();
+  volute(x, cx - 112, 372, 30, 1.6, 1, 4);
+  volute(x, cx + 112, 372, 30, 1.6, -1, 4);
+  // central acanthus with two side leaves, and berry clusters below
+  pen(x, 3.2);
+  acanthus(x, cx, 492, 150, 82, 0);
+  acanthus(x, cx - 58, 496, 118, 60, -0.6);
+  acanthus(x, cx + 58, 496, 118, 60, 0.6);
+  x.lineWidth = 2.5;
+  for (const bx of [cx - 70, cx + 70]) {
+    for (let i = 0; i < 6; i++) {
+      x.beginPath();
+      x.arc(bx + (r() - 0.5) * 30, 470 + (r() - 0.5) * 22, 7, 0, TAU);
+      x.stroke();
+    }
   }
-  // shade
-  x.beginPath();
-  x.moveTo(205, 575);
-  x.quadraticCurveTo(160, 640, 60, 690);
-  x.quadraticCurveTo(260, 740, 460, 690);
-  x.quadraticCurveTo(360, 640, 315, 575);
-  x.closePath();
-  x.stroke();
-  x.beginPath();
-  x.ellipse(260, 690, 200, 22, 0, 0, TAU);
-  x.stroke();
-  // bulb
-  x.beginPath();
-  x.moveTo(240, 712);
-  x.lineTo(240, 760);
-  x.bezierCurveTo(200, 800, 220, 880, 260, 890);
-  x.bezierCurveTo(300, 880, 320, 800, 280, 760);
-  x.lineTo(280, 712);
-  x.stroke();
-  pen(x, 2);
-  for (let i = 0; i < 3; i++) {
+  // necking rings
+  pen(x, 5);
+  x.strokeRect(cx - 82, 500, 164, 18);
+  x.strokeRect(cx - 76, 518, 152, 12);
+  // shaft: double outer lines and a fillet line, tapering slightly
+  const shaft = [[-70, -4], [-56, -2.5], [-40, -1.5], [40, -1.5], [56, -2.5], [70, -4]];
+  for (const [o, lean] of shaft) {
+    x.lineWidth = Math.abs(o) === 70 ? 5.5 : Math.abs(o) === 56 ? 2.5 : 3.5;
     x.beginPath();
-    x.moveTo(250 + i * 10, 790);
-    x.lineTo(250 + i * 10, 860);
+    x.moveTo(cx + o, 532);
+    x.lineTo(cx + o * 0.92 + lean, H);
     x.stroke();
   }
   return c;
 }
 
+export function gothicWindow() {
+  const W = 1300;
+  const H = 1500;
+  const c = makeCanvas(W, H);
+  const x = c.getContext("2d");
+  const r = rng(17);
+  pen(x, 6);
+  const pointed = (l, rr, top, base, w) => {
+    const span = rr - l;
+    x.lineWidth = w;
+    x.beginPath();
+    x.moveTo(l, base);
+    x.lineTo(l, top + span * 0.65);
+    x.bezierCurveTo(l, top + span * 0.15, l + span * 0.3, top, l + span / 2, top - span * 0.08);
+    x.bezierCurveTo(rr - span * 0.3, top, rr, top + span * 0.15, rr, top + span * 0.65);
+    x.lineTo(rr, base);
+    x.stroke();
+  };
+  // outer frame: a big pointed arch, triple moulding, with a scroll at the left springer
+  pointed(250, 1150, 120, 1420, 9);
+  pointed(285, 1115, 160, 1410, 4);
+  pointed(320, 1080, 200, 1400, 7);
+  volute(x, 228, 470, 30, 1.7, 1, 5);
+  // three lancets
+  const lancets = [[345, 565], [590, 810], [835, 1055]];
+  for (const [l, rr] of lancets) {
+    pointed(l, rr, 560, 1330, 8);
+    pointed(l + 22, rr - 22, 595, 1320, 3);
+  }
+  // branching tracery above the lancets: Y-shaped mullions with cusped (thorny) foils
+  pen(x, 7);
+  for (const mx of [577, 822]) {
+    x.beginPath();
+    x.moveTo(mx, 600);
+    x.bezierCurveTo(mx, 470, mx - 60, 400, mx - 140, 300);
+    x.moveTo(mx, 600);
+    x.bezierCurveTo(mx, 470, mx + 60, 400, mx + 140, 300);
+    x.stroke();
+  }
+  pen(x, 4);
+  for (let i = 0; i < 5; i++) {
+    const fx = 420 + i * 140;
+    const fy = 330 + (i % 2) * 60;
+    // cusps: small inward thorns along a lobed outline
+    x.beginPath();
+    for (let a = 0; a <= TAU + 0.01; a += TAU / 36) {
+      const lobes = 3;
+      const rr = 48 + 14 * Math.cos(a * lobes) - (Math.round(a / (TAU / lobes)) === a / (TAU / lobes) ? 10 : 0);
+      const px = fx + Math.cos(a - Math.PI / 2) * rr;
+      const py = fy + Math.sin(a - Math.PI / 2) * rr * 1.25;
+      if (a === 0) x.moveTo(px, py);
+      else x.lineTo(px, py);
+    }
+    x.stroke();
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * TAU + Math.PI / 3 - Math.PI / 2;
+      line(x, [[fx + Math.cos(a) * 32, fy + Math.sin(a) * 40], [fx + Math.cos(a) * 52, fy + Math.sin(a) * 65]], 3);
+    }
+  }
+  // glass: groups of short diagonal hatch strokes
+  for (let i = 0; i < 16; i++) {
+    const [l, rr] = lancets[i % 3];
+    const gx = l + 40 + r() * (rr - l - 120);
+    const gy = 700 + r() * 560;
+    const n = 3 + Math.floor(r() * 3);
+    hatch(x, gx, gy, gx + 18, gy + 14, n, 60 + r() * 40, -0.55, 1.6);
+  }
+  // brick quoins on both sides, stippled toward the window
+  pen(x, 5);
+  for (let i = 0; i < 13; i++) {
+    const by = 420 + i * 78;
+    for (const side of [-1, 1]) {
+      const bw = i % 2 ? 110 : 80;
+      const bx = side < 0 ? 250 - bw : 1150;
+      x.strokeRect(bx, by, bw, 70);
+      const sx = side < 0 ? bx + bw - 34 : bx + 4;
+      for (let k = 0; k < 30; k++) {
+        x.beginPath();
+        x.arc(sx + r() * 30, by + 4 + r() * 62, 1.6 + r() * 1.4, 0, TAU);
+        x.fill();
+      }
+    }
+  }
+  // sill with dotted shade
+  x.strokeRect(220, 1400, 960, 34);
+  x.strokeRect(200, 1434, 1000, 26);
+  for (let k = 0; k < 160; k++) {
+    x.beginPath();
+    x.arc(205 + r() * 990, 1438 + r() * 18, 1.5 + r() * 1.2, 0, TAU);
+    x.fill();
+  }
+  return c;
+}
+
+/** Heavy black ironwork lantern: scroll bracket, knobbed rod, crown, flat shade, bulb. */
+export function lantern() {
+  const W = 700;
+  const H = 1150;
+  const c = makeCanvas(W, H);
+  const x = c.getContext("2d");
+  pen(x, 10);
+  const cx = 250;
+  // scroll bracket arriving from the upper right, with a filled rope-twist band
+  x.beginPath();
+  x.moveTo(W - 20, 60);
+  x.bezierCurveTo(W - 200, 40, 420, 150, cx + 40, 130);
+  x.stroke();
+  x.lineWidth = 22;
+  x.beginPath();
+  x.moveTo(W - 30, 70);
+  x.bezierCurveTo(W - 180, 70, 470, 160, 360, 150);
+  x.stroke();
+  x.globalCompositeOperation = "destination-out";
+  x.lineWidth = 3;
+  for (let i = 0; i < 14; i++) {
+    const k = i / 14;
+    const px = (W - 30) * (1 - k) + 360 * k;
+    const py = 70 * (1 - k) + 150 * k + Math.sin(k * Math.PI) * 30;
+    x.beginPath();
+    x.moveTo(px - 6, py - 9);
+    x.lineTo(px + 6, py + 9);
+    x.stroke();
+  }
+  x.globalCompositeOperation = "source-over";
+  volute(x, W - 70, 150, 50, 1.6, -1, 10);
+  volute(x, cx + 70, 210, 34, 1.5, 1, 8);
+  // cross bar with end curls
+  x.lineWidth = 12;
+  line(x, [[cx - 130, 130], [cx + 120, 130]], 12);
+  volute(x, cx - 140, 170, 32, 1.4, 1, 8);
+  // rod with knobs and balusters (filled)
+  x.fillStyle = "#000";
+  x.fillRect(cx - 9, 130, 18, 470);
+  for (const [y, rw, rh] of [[200, 28, 22], [270, 22, 40], [340, 34, 30], [420, 22, 50], [500, 30, 24]]) {
+    x.beginPath();
+    x.ellipse(cx, y, rw, rh, 0, 0, TAU);
+    x.fill();
+  }
+  // crown: castellated, dark with window cut-outs
+  x.beginPath();
+  x.moveTo(cx - 120, 680);
+  for (let i = 0; i <= 8; i++) x.lineTo(cx - 120 + i * 30, i % 2 ? 610 : 640);
+  x.lineTo(cx + 120, 680);
+  x.closePath();
+  x.fill();
+  x.globalCompositeOperation = "destination-out";
+  for (let i = 0; i < 4; i++) x.fillRect(cx - 95 + i * 52, 648, 24, 22);
+  x.globalCompositeOperation = "source-over";
+  for (const [y, w2, h2] of [[690, 110, 18], [718, 92, 16], [744, 120, 18]]) x.fillRect(cx - w2, y, w2 * 2, h2);
+  // flat dome shade with hatched shading and a thin rim
+  x.beginPath();
+  x.moveTo(cx - 90, 770);
+  x.quadraticCurveTo(cx - 200, 800, cx - 300, 860);
+  x.lineTo(cx + 300, 860);
+  x.quadraticCurveTo(cx + 200, 800, cx + 90, 770);
+  x.closePath();
+  x.lineWidth = 7;
+  x.stroke();
+  hatch(x, cx - 220, 845, cx - 60, 800, 9, 46, -0.15, 3);
+  hatch(x, cx + 60, 800, cx + 220, 845, 9, 46, 0.15 + Math.PI, 3);
+  x.fillRect(cx - 320, 858, 640, 12);
+  // socket and bulb
+  x.fillRect(cx - 34, 870, 68, 40);
+  x.beginPath();
+  x.moveTo(cx - 26, 910);
+  x.bezierCurveTo(cx - 60, 960, cx - 50, 1060, cx, 1080);
+  x.bezierCurveTo(cx + 50, 1060, cx + 60, 960, cx + 26, 910);
+  x.lineWidth = 7;
+  x.stroke();
+  line(x, [[cx - 8, 930], [cx - 10, 1040]], 3);
+  line(x, [[cx + 8, 930], [cx + 10, 1040]], 3);
+  return c;
+}
+
+// ---- chapter II: the violet library ---------------------------------------------------
+
 export function books() {
-  const W = 1000;
-  const H = 900;
+  const W = 1100;
+  const H = 1000;
   const c = makeCanvas(W, H);
   const x = c.getContext("2d");
   const r = rng(31);
-  const tome = (ox, oy, w, h, depth, ornate) => {
-    pen(x, 8);
-    // front cover (slanted), spine curve on the left, page block below
+  pen(x, 6);
+  // the big tome in perspective: cover parallelogram + page block + spine
+  const A = [180, 520];
+  const B = [620, 300];
+  const C = [960, 520];
+  const D = [500, 770];
+  const drop = 150;
+  line(x, [A, B, C, D, A], 7);
+  line(x, [A, [A[0], A[1] + drop], [D[0], D[1] + drop], D], 7);
+  line(x, [D, [D[0], D[1] + drop], [C[0], C[1] + drop], C], 7);
+  // page edges on both visible sides
+  pen(x, 2.5);
+  for (let i = 1; i < 9; i++) {
+    const k = i / 9;
+    line(x, [[A[0] + 14, A[1] + drop * k], [D[0] - 6, D[1] + drop * k]], 2.5);
+    line(x, [[D[0] + 8, D[1] + drop * k], [C[0] - 14, C[1] + drop * k]], 2);
+  }
+  // rounded spine bulge on the left with raised bands
+  pen(x, 6);
+  x.beginPath();
+  x.moveTo(A[0], A[1]);
+  x.bezierCurveTo(A[0] - 50, A[1] + 30, A[0] - 50, A[1] + drop - 20, A[0], A[1] + drop);
+  x.stroke();
+  // border band around the cover with zig-zag tooling
+  const inset = (p, q, k) => [p[0] + (q[0] - p[0]) * k, p[1] + (q[1] - p[1]) * k];
+  const center = [(A[0] + C[0]) / 2, (B[1] + D[1]) / 2];
+  const ring = [A, B, C, D].map((p) => inset(p, center, 0.12));
+  line(x, [...ring, ring[0]], 3.5);
+  x.lineWidth = 2.5;
+  x.beginPath();
+  for (let s = 0; s < 4; s++) {
+    const p = ring[s];
+    const q = ring[(s + 1) % 4];
+    for (let i = 0; i < 14; i++) {
+      const a = inset(p, q, i / 14);
+      const b = inset(p, q, (i + 0.5) / 14);
+      const m = inset([b[0], b[1]], center, 0.04);
+      x.moveTo(a[0], a[1]);
+      x.lineTo(m[0], m[1]);
+    }
+  }
+  x.stroke();
+  // ornate cross with trefoil ends, and foliage scrolls around it
+  pen(x, 9);
+  const cx = center[0];
+  const cy = center[1];
+  line(x, [[cx - 140, cy + 60], [cx + 140, cy - 60]], 9);
+  line(x, [[cx - 40, cy - 120], [cx + 40, cy + 120]], 9);
+  pen(x, 4);
+  for (const [ex, ey] of [[cx - 140, cy + 60], [cx + 140, cy - 60], [cx - 40, cy - 120], [cx + 40, cy + 120]]) {
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * TAU;
+      x.beginPath();
+      x.arc(ex + Math.cos(a) * 14, ey + Math.sin(a) * 14, 12, 0, TAU);
+      x.stroke();
+    }
+  }
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * TAU + r() * 0.3;
+    const rr = 150 + r() * 70;
+    const px = cx + Math.cos(a) * rr;
+    const py = cy + Math.sin(a) * rr * 0.55;
+    volute(x, px, py, 14 + r() * 12, 1.2, i % 2 ? 1 : -1, 3.5);
+    line(x, [[px, py], [px + (r() - 0.5) * 50, py + (r() - 0.5) * 30]], 3);
+  }
+  // metal corner pieces and clasps on the fore-edge
+  pen(x, 5);
+  for (const p of [A, B, C, D]) {
+    const q = inset(p, center, 0.09);
     x.beginPath();
-    x.moveTo(ox, oy);
-    x.lineTo(ox + w, oy - w * 0.22);
-    x.lineTo(ox + w + h * 0.35, oy - w * 0.22 + h);
-    x.lineTo(ox + h * 0.35, oy + h);
-    x.closePath();
+    x.arc(q[0], q[1], 22, 0, TAU);
     x.stroke();
+  }
+  for (const k of [0.3, 0.7]) {
+    const p = inset(D, C, k);
     x.beginPath();
-    x.moveTo(ox, oy);
-    x.bezierCurveTo(ox - depth * 0.7, oy + h * 0.1, ox - depth * 0.6 + h * 0.3, oy + h + depth * 0.2, ox + h * 0.35, oy + h + depth * 0.45);
+    x.moveTo(p[0], p[1] - 8);
+    x.bezierCurveTo(p[0] + 26, p[1] + 10, p[0] + 26, p[1] + drop - 20, p[0] + 4, p[1] + drop + 8);
+    x.lineWidth = 10;
     x.stroke();
+  }
+  // two books standing behind, with banded spines
+  pen(x, 6);
+  for (const [bx, by, bw, bh] of [[560, 40, 150, 250], [700, 80, 120, 210]]) {
+    x.strokeRect(bx, by, bw, bh);
     x.beginPath();
-    x.moveTo(ox + h * 0.35, oy + h);
-    x.lineTo(ox + h * 0.35, oy + h + depth * 0.45);
-    x.lineTo(ox + w + h * 0.35, oy - w * 0.22 + h + depth * 0.45);
-    x.lineTo(ox + w + h * 0.35, oy - w * 0.22 + h);
+    x.moveTo(bx, by);
+    x.lineTo(bx + 40, by - 30);
+    x.lineTo(bx + bw + 40, by - 30);
+    x.lineTo(bx + bw, by);
+    x.moveTo(bx + bw + 40, by - 30);
+    x.lineTo(bx + bw + 40, by + bh - 30);
+    x.lineTo(bx + bw, by + bh);
     x.stroke();
-    pen(x, 3);
-    for (let i = 1; i < 6; i++) {
-      x.beginPath();
-      x.moveTo(ox + h * 0.35, oy + h + (depth * 0.45 * i) / 6);
-      x.lineTo(ox + w + h * 0.35, oy - w * 0.22 + h + (depth * 0.45 * i) / 6);
-      x.stroke();
-    }
-    // raised bands across the spine
-    pen(x, 5);
-    for (let i = 1; i < 4; i++) {
-      const k = i / 4;
-      x.beginPath();
-      x.moveTo(ox + h * 0.35 * k, oy + h * k);
-      x.quadraticCurveTo(ox + h * 0.35 * k - depth * 0.5, oy + h * k + depth * 0.15, ox + h * 0.35 * k - depth * 0.15, oy + h * k + depth * 0.3);
-      x.stroke();
-    }
-    if (!ornate) return;
-    // corner pieces, a cross with flourishes, and two clasps
-    pen(x, 5);
-    const corner = (px, py, sx, sy) => {
-      x.beginPath();
-      x.moveTo(px, py + sy * 60);
-      x.quadraticCurveTo(px, py, px + sx * 60, py - sy * 12);
-      x.stroke();
-      x.beginPath();
-      x.arc(px + sx * 25, py + sy * 18, 12, 0, TAU);
-      x.stroke();
-    };
-    corner(ox + 30, oy + 20, 1, 1);
-    corner(ox + w - 20, oy - w * 0.22 + 25, -1, 1);
-    corner(ox + h * 0.35 + 40, oy + h - 30, 1, -1);
-    corner(ox + w + h * 0.35 - 30, oy - w * 0.22 + h - 25, -1, -1);
-    const cx = ox + w * 0.5 + h * 0.18;
-    const cy = oy - w * 0.11 + h * 0.5;
-    pen(x, 9);
-    x.beginPath();
-    x.moveTo(cx - 90, cy + 20);
-    x.lineTo(cx + 90, cy - 20);
-    x.moveTo(cx - 25, cy - 110);
-    x.lineTo(cx + 25, cy + 110);
-    x.stroke();
-    pen(x, 4);
-    for (const [ex, ey] of [[cx - 90, cy + 20], [cx + 90, cy - 20], [cx - 25, cy - 110], [cx + 25, cy + 110]]) {
-      x.beginPath();
-      x.arc(ex, ey, 16, 0, TAU);
-      x.stroke();
-    }
-    for (let i = 0; i < 12; i++) {
-      const a = r() * TAU;
-      const rr = 70 + r() * 70;
-      x.beginPath();
-      x.arc(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.6, 12 + r() * 14, a, a + 3.2);
-      x.stroke();
-    }
-    pen(x, 7);
-    for (const k of [0.3, 0.7]) {
-      const px = ox + w + h * 0.35 * k;
-      const py = oy - w * 0.22 + h * k;
-      x.strokeRect(px - 10, py - 18, 46, 36);
-    }
-  };
-  tome(250, 230, 520, 150, 90, false);
-  tome(140, 470, 640, 260, 140, true);
+    for (const k of [0.2, 0.5, 0.8]) line(x, [[bx, by + bh * k], [bx + bw, by + bh * k]], 4);
+  }
   return c;
 }
 
 export function starMap() {
-  const W = 1100;
-  const H = 700;
+  const W = 1200;
+  const H = 720;
   const c = makeCanvas(W, H);
   const x = c.getContext("2d");
   const r = rng(41);
-  // torn parchment
+  // torn parchment, ragged at the top
   x.beginPath();
-  x.moveTo(40, 160);
-  const edge = [];
-  for (let i = 0; i <= 40; i++) edge.push([40 + (i / 40) * 1020, 140 + Math.sin(i * 0.7) * 30 + r() * 40 - (i > 20 ? (i - 20) * 4 : 0)]);
-  edge.forEach(([px, py]) => x.lineTo(px, py));
-  x.lineTo(1080, 700);
-  x.lineTo(20, 700);
+  x.moveTo(30, 230);
+  for (let i = 0; i <= 50; i++) {
+    const k = i / 50;
+    x.lineTo(30 + k * 1160, 220 - Math.sin(k * Math.PI) * 120 + (r() - 0.5) * 28 + (k > 0.62 ? -40 : 0));
+  }
+  x.lineTo(1190, 720);
+  x.lineTo(0, 720);
   x.closePath();
-  const g = x.createLinearGradient(0, 140, 0, 700);
-  g.addColorStop(0, "#efe6d2");
-  g.addColorStop(1, "#d9ccb2");
+  const g = x.createLinearGradient(0, 100, 0, 720);
+  g.addColorStop(0, "#f1ead8");
+  g.addColorStop(1, "#ddd2b8");
   x.fillStyle = g;
   x.fill();
   x.save();
   x.clip();
-  pen(x, 2.5);
-  x.strokeStyle = "#2c2a3a";
-  x.fillStyle = "#2c2a3a";
-  for (let k = 0; k < 6; k++) {
+  const ink = "#33313d";
+  x.strokeStyle = ink;
+  x.fillStyle = ink;
+  x.lineCap = "round";
+  // teal edge lines near the left
+  x.strokeStyle = "#2b7d82";
+  x.lineWidth = 4;
+  for (const o of [0, 18]) {
     x.beginPath();
-    x.arc(700, 980, 380 + k * 90, Math.PI * 1.05, Math.PI * 1.95);
+    x.arc(1300 + o, 1500, 1260 + o, Math.PI * 1.12, Math.PI * 1.3);
     x.stroke();
   }
-  for (let k = 0; k < 7; k++) {
+  x.strokeStyle = ink;
+  // concentric declination circles around the pole
+  const pole = [930, 330];
+  for (let k = 1; k <= 5; k++) {
+    x.lineWidth = k === 3 ? 3.5 : 2.4;
     x.beginPath();
-    x.moveTo(700, 980);
-    const a = Math.PI * (1.1 + k * 0.12);
-    x.lineTo(700 + Math.cos(a) * 1200, 980 + Math.sin(a) * 1200);
+    x.arc(pole[0], pole[1], k * 150, 0, TAU);
     x.stroke();
   }
-  x.setLineDash([8, 8]);
+  // hour lines radiating from the pole
+  x.lineWidth = 2.4;
+  for (let k = 0; k < 12; k++) {
+    const a = (k / 12) * TAU;
+    line(x, [[pole[0] + Math.cos(a) * 40, pole[1] + Math.sin(a) * 40], [pole[0] + Math.cos(a) * 1400, pole[1] + Math.sin(a) * 1400]], 2.4);
+  }
+  // dashed ecliptic and constellation boundaries
+  x.setLineDash([16, 12]);
+  x.lineWidth = 3;
   x.beginPath();
-  x.ellipse(620, 700, 520, 260, -0.2, Math.PI, TAU);
+  x.ellipse(560, 430, 560, 300, -0.25, 0, TAU);
+  x.stroke();
+  x.beginPath();
+  x.ellipse(860, 280, 170, 110, 0.3, 0, TAU);
   x.stroke();
   x.setLineDash([]);
-  // constellations
-  for (let k = 0; k < 7; k++) {
-    const ox = 120 + r() * 860;
-    const oy = 260 + r() * 360;
-    let px = ox;
-    let py = oy;
-    x.beginPath();
-    x.moveTo(px, py);
-    for (let i = 0; i < 4; i++) {
-      px += (r() - 0.5) * 140;
-      py += (r() - 0.5) * 110;
-      x.lineTo(px, py);
-    }
-    x.stroke();
-    for (let i = 0; i < 6; i++) {
-      x.beginPath();
-      x.arc(ox + (r() - 0.5) * 200, oy + (r() - 0.5) * 160, 3 + r() * 4, 0, TAU);
-      x.fill();
-    }
+  // stars with Greek letters, joined into figures
+  const greek = "αβγδεζηθικλμ";
+  const pts = [];
+  for (let i = 0; i < 26; i++) pts.push([100 + r() * 1050, 230 + r() * 470, 3 + r() * 6]);
+  x.lineWidth = 2.2;
+  x.beginPath();
+  for (let i = 0; i < pts.length - 1; i += 2) {
+    x.moveTo(pts[i][0], pts[i][1]);
+    x.lineTo(pts[i + 1][0], pts[i + 1][1]);
   }
-  x.font = "italic 600 30px Georgia, serif";
-  [["URSA MINOR", 760, 280], ["DRACO", 860, 520], ["BOOTES", 330, 560], ["XV", 180, 650]].forEach(([s, px, py]) => x.fillText(s, px, py));
+  x.stroke();
+  x.font = "italic 26px Georgia, serif";
+  pts.forEach(([px, py, s], i) => {
+    if (i % 3 === 0) {
+      // a small star cross for the brighter ones
+      line(x, [[px - s * 2, py], [px + s * 2, py]], 2);
+      line(x, [[px, py - s * 2], [px, py + s * 2]], 2);
+    }
+    x.beginPath();
+    x.arc(px, py, s * 0.8, 0, TAU);
+    x.fill();
+    x.fillText(greek[i % greek.length], px + 10, py - 8);
+  });
+  // labels set along the grid
+  const label = (s, px, py, rot, size) => {
+    x.save();
+    x.translate(px, py);
+    x.rotate(rot);
+    x.font = `bold ${size}px Georgia, serif`;
+    x.fillText(s, 0, 0);
+    x.restore();
+  };
+  label("URSA", 830, 300, 1.25, 34);
+  label("MINOR", 770, 280, 1.25, 34);
+  label("BOOTES", 430, 420, 1.45, 36);
+  label("DRACO", 760, 600, 0.55, 36);
+  label("Former", 690, 520, 0.9, 26);
+  label("Pole Star", 660, 545, 0.9, 26);
+  label("XV", 280, 640, -1.4, 34);
+  label("70°", 900, 640, 0.3, 26);
   x.restore();
   return c;
 }
 
+// ---- chapter III: the lilac sky ---------------------------------------------------------
+
 export function clock() {
-  const S = 1000;
+  const S = 1100;
   const c = makeCanvas(S, S);
   const x = c.getContext("2d");
-  const R = S / 2;
-  x.translate(R, R);
-  pen(x, 7);
-  for (const k of [0.96, 0.88, 0.62, 0.56]) {
+  const R = S / 2 - 20;
+  x.translate(S / 2, S / 2);
+  pen(x, 8);
+  // outer rings with a band of dashes between them
+  for (const k of [1, 0.9, 0.62]) {
     x.beginPath();
     x.arc(0, 0, R * k, 0, TAU);
+    x.lineWidth = k === 1 ? 9 : 7;
     x.stroke();
   }
-  pen(x, 3);
-  for (let i = 0; i < 120; i++) {
-    const a = (i / 120) * TAU;
-    x.beginPath();
-    x.moveTo(Math.cos(a) * R * 0.88, Math.sin(a) * R * 0.88);
-    x.lineTo(Math.cos(a) * R * 0.92, Math.sin(a) * R * 0.92);
-    x.stroke();
-  }
-  const numerals = ["XII", "I", "II", "III", "IIII", "V", "VI", "VII", "VIII", "IX", "X", "XI"];
-  x.font = "bold 74px Georgia, serif";
-  x.textAlign = "center";
-  x.textBaseline = "middle";
-  numerals.forEach((n, i) => {
-    const a = (i / 12) * TAU - Math.PI / 2;
-    x.save();
-    x.translate(Math.cos(a) * R * 0.75, Math.sin(a) * R * 0.75);
-    x.rotate(a + Math.PI / 2);
-    x.fillText(n, 0, 0);
-    x.restore();
-  });
-  // spear hands
-  pen(x, 6);
-  const hand = (a, len) => {
+  x.lineWidth = 12;
+  x.setLineDash([26, 14]);
+  x.beginPath();
+  x.arc(0, 0, R * 0.95, 0, TAU);
+  x.stroke();
+  x.setLineDash([]);
+  // column-like roman numerals: bars with serif caps
+  const numeral = (s, a) => {
     x.save();
     x.rotate(a);
-    x.beginPath();
-    x.moveTo(0, 0);
-    x.lineTo(0, -len);
-    x.stroke();
-    x.beginPath();
-    x.moveTo(0, -len - 40);
-    x.lineTo(16, -len + 10);
-    x.lineTo(-16, -len + 10);
-    x.closePath();
-    x.fill();
+    x.translate(0, -R * 0.77);
+    const n = s.length;
+    const bw = 18;
+    const gap = 16;
+    const total = n * bw + (n - 1) * gap;
+    let px = -total / 2;
+    for (const ch of s) {
+      if (ch === "I") {
+        x.fillRect(px, -55, bw, 110);
+        x.fillRect(px - 8, -62, bw + 16, 10);
+        x.fillRect(px - 8, 52, bw + 16, 10);
+      } else if (ch === "V") {
+        x.beginPath();
+        x.moveTo(px - 10, -60);
+        x.lineTo(px + bw / 2, 60);
+        x.lineTo(px + bw + 10, -60);
+        x.lineWidth = 12;
+        x.stroke();
+      } else {
+        x.beginPath();
+        x.moveTo(px - 10, -60);
+        x.lineTo(px + bw + 10, 60);
+        x.moveTo(px + bw + 10, -60);
+        x.lineTo(px - 10, 60);
+        x.lineWidth = 12;
+        x.stroke();
+      }
+      px += bw + gap;
+    }
     x.restore();
   };
-  hand(-0.5, R * 0.42);
-  hand(2.1, R * 0.3);
+  ["XII", "I", "II", "III", "IIII", "V", "VI", "VII", "VIII", "IX", "X", "XI"].forEach((s, i) => numeral(s, (i / 12) * TAU));
+  // small arabic minutes outside the ring
+  x.font = "bold 46px Georgia, serif";
+  x.textAlign = "center";
+  x.textBaseline = "middle";
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * TAU - Math.PI / 2 + 0.26;
+    x.save();
+    x.translate(Math.cos(a) * R * 1.07, Math.sin(a) * R * 1.07);
+    x.rotate(a + Math.PI / 2);
+    x.fillText(String(((i * 5 + 5) % 60) || 60), 0, 0);
+    x.restore();
+  }
+  // long spear hands with a lozenge
+  const hand = (a, len, w) => {
+    x.save();
+    x.rotate(a);
+    x.lineWidth = w;
+    line(x, [[0, 40], [0, -len]], w);
+    x.beginPath();
+    x.moveTo(0, -len - 60);
+    x.lineTo(16, -len + 4);
+    x.lineTo(0, -len + 20);
+    x.lineTo(-16, -len + 4);
+    x.closePath();
+    x.fill();
+    x.beginPath();
+    x.ellipse(0, -len * 0.45, 14, 30, 0, 0, TAU);
+    x.stroke();
+    x.restore();
+  };
+  hand(-0.45, R * 0.5, 6);
+  hand(0.55, R * 0.36, 8);
+  x.beginPath();
+  x.arc(0, 0, 18, 0, TAU);
+  x.fill();
   return c;
 }
 
 export function sun() {
-  const S = 1000;
+  const S = 1100;
   const c = makeCanvas(S, S);
   const x = c.getContext("2d");
-  const R = S / 2;
-  x.translate(R, R);
+  const R = S / 2 - 10;
+  x.translate(S / 2, S / 2);
+  const r = rng(61);
   pen(x, 6);
-  for (const k of [0.3, 0.26]) {
+  x.beginPath();
+  x.arc(0, 0, R * 0.3, 0, TAU);
+  x.stroke();
+  x.beginPath();
+  x.arc(0, 0, R * 0.36, 0, TAU);
+  x.stroke();
+  // short radial hatching inside the rim
+  x.lineWidth = 2.5;
+  x.beginPath();
+  for (let i = 0; i < 160; i++) {
+    const a = (i / 160) * TAU;
+    x.moveTo(Math.cos(a) * R * 0.24, Math.sin(a) * R * 0.24);
+    x.lineTo(Math.cos(a) * R * 0.29, Math.sin(a) * R * 0.29);
+  }
+  x.stroke();
+  // wavy flame hair between the rays
+  x.lineWidth = 3.5;
+  for (let i = 0; i < 48; i++) {
+    const a = (i / 48) * TAU + (r() - 0.5) * 0.05;
+    const r0 = R * 0.38;
+    const r1 = R * (0.5 + r() * 0.08);
     x.beginPath();
-    x.arc(0, 0, R * k, 0, TAU);
+    for (let k = 0; k <= 10; k++) {
+      const rr = r0 + (r1 - r0) * (k / 10);
+      const wob = Math.sin(k * 1.4 + i) * 0.035;
+      const px = Math.cos(a + wob) * rr;
+      const py = Math.sin(a + wob) * rr;
+      if (k === 0) x.moveTo(px, py);
+      else x.lineTo(px, py);
+    }
     x.stroke();
   }
-  // flame tongues
-  pen(x, 4);
-  for (let i = 0; i < 28; i++) {
-    const a = (i / 28) * TAU;
-    x.save();
-    x.rotate(a);
-    x.beginPath();
-    x.moveTo(R * 0.32, -10);
-    x.bezierCurveTo(R * 0.4, -30, R * 0.38, 20, R * 0.46, 8);
-    x.bezierCurveTo(R * 0.4, 14, R * 0.42, -6, R * 0.32, 10);
-    x.stroke();
-    x.restore();
-  }
-  // long rays
-  pen(x, 5);
+  // eight long rays with an inner line, sparkle ticks at the tips
   for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * TAU + 0.2;
+    const a = (i / 8) * TAU + 0.18;
     x.save();
     x.rotate(a);
-    x.beginPath();
-    x.moveTo(R * 0.45, -34);
-    x.lineTo(R * 0.98, 0);
-    x.lineTo(R * 0.45, 34);
-    x.stroke();
-    // sparkle tick at the tip
-    x.beginPath();
-    x.moveTo(R * 0.9, -40);
-    x.lineTo(R * 0.94, -60);
-    x.moveTo(R * 0.94, 40);
-    x.lineTo(R * 0.98, 60);
-    x.stroke();
+    const len = i % 2 ? R * 0.85 : R * 0.98;
+    line(x, [[R * 0.4, -46], [len, 0], [R * 0.4, 46]], 6);
+    line(x, [[R * 0.45, -12], [len * 0.88, 0]], 3);
+    for (let k = -1; k <= 1; k++) line(x, [[len + 8, k * 14], [len + 34, k * 30]], 3);
     x.restore();
   }
   return c;
 }
 
-/** A strand of beads and ornaments along a curve. */
+/** Two strands of beads joined by scroll ornaments, along a gentle S-curve. */
 export function chain() {
-  const W = 400;
-  const H = 1600;
+  const W = 420;
+  const H = 1700;
   const c = makeCanvas(W, H);
   const x = c.getContext("2d");
   pen(x, 4);
-  const path = (s) => [200 + Math.sin(s * 3.2) * 120, 40 + s * (H - 80)];
-  let prev = path(0);
-  for (let i = 1; i <= 90; i++) {
-    const s = i / 90;
-    const p = path(s);
-    if (i % 9 === 0) {
-      // ornament: a scroll knot
+  const path = (s, off) => [210 + Math.sin(s * 2.6) * 110 + off, 40 + s * (H - 80)];
+  for (const off of [-16, 16]) {
+    for (let i = 0; i <= 120; i++) {
+      const s = i / 120;
+      const [px, py] = path(s, off);
       x.beginPath();
-      x.ellipse(p[0], p[1], 22, 30, 0, 0, TAU);
-      x.stroke();
-      x.beginPath();
-      x.moveTo(p[0] - 22, p[1]);
-      x.quadraticCurveTo(p[0], p[1] - 50, p[0] + 22, p[1]);
-      x.stroke();
-    } else {
-      x.beginPath();
-      x.arc(p[0], p[1], 6, 0, TAU);
+      x.arc(px, py, i % 4 === 0 ? 7 : 4.5, 0, TAU);
       x.stroke();
     }
-    x.beginPath();
-    x.moveTo(prev[0], prev[1]);
-    x.lineTo(p[0], p[1]);
-    x.lineWidth = 2;
-    x.stroke();
+  }
+  // scroll ornaments where the strands meet
+  for (let i = 1; i < 8; i++) {
+    const [px, py] = path(i / 8, 0);
     x.lineWidth = 4;
-    prev = p;
+    x.beginPath();
+    x.ellipse(px, py, 26, 34, 0, 0, TAU);
+    x.stroke();
+    volute(x, px - 30, py - 30, 18, 1.4, 1, 3.5);
+    volute(x, px + 30, py + 30, 18, 1.4, -1, 3.5);
+    x.beginPath();
+    x.moveTo(px, py - 34);
+    x.lineTo(px, py - 60);
+    x.moveTo(px - 12, py - 50);
+    x.lineTo(px + 12, py - 50);
+    x.stroke();
   }
   return c;
 }
 
 export function star5() {
-  const S = 300;
+  const S = 320;
   const c = makeCanvas(S, S);
   const x = c.getContext("2d");
-  pen(x, 8);
   x.translate(S / 2, S / 2);
-  x.beginPath();
-  for (let i = 0; i < 10; i++) {
-    const a = (i / 10) * TAU - Math.PI / 2;
-    const rr = i % 2 ? 50 : 120;
-    x.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+  for (const [k, w] of [[1, 9], [0.78, 4]]) {
+    pen(x, w);
+    x.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * TAU - Math.PI / 2;
+      const rr = (i % 2 ? 52 : 130) * k;
+      x.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+    x.closePath();
+    x.stroke();
   }
-  x.closePath();
-  x.stroke();
   return c;
 }
 

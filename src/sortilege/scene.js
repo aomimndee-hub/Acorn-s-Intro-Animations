@@ -35,14 +35,18 @@ function fill(ctx, W, H, c) {
   ctx.fillRect(0, 0, W, H);
 }
 
+/** Draw a sprite centred at (x, y), w wide; a negative w mirrors it. */
 function draw(ctx, img, x, y, w, rot = 0, alpha = 1, mode) {
   if (alpha <= 0.01) return;
+  const flip = Math.sign(w) || 1;
+  w = Math.abs(w);
   const h = (img.height / img.width) * w;
   ctx.save();
   ctx.globalAlpha = alpha;
   if (mode) ctx.globalCompositeOperation = mode;
   ctx.translate(x, y);
   ctx.rotate(rot);
+  ctx.scale(flip, 1);
   ctx.drawImage(img, -w / 2, -h / 2, w, h);
   ctx.restore();
 }
@@ -217,11 +221,11 @@ function shotSepia(ctx, st, t) {
       text(ctx, s, W * x, H * y, H * k, { color: "#4b3a28", alpha: 0.32 * smooth(t, t0, t0 + 0.6), weight: 600, blur: 1.2 * U });
     }
     // a second, faint column further back
-    draw(ctx, A.columnFaint, W * 0.36, H * 0.6, H * 0.26, 0.04, 0.3 * a);
-    draw(ctx, A.window, W * 0.6, H * 0.66, H * 1.15, -0.06, 0.92 * a);
-    draw(ctx, A.column, W * 0.13, H * 0.66, H * 0.3, 0.05, 0.95 * a);
+    draw(ctx, A.columnFaint, W * 0.36, H * 0.62, H * 0.3, 0.04, 0.3 * a);
+    draw(ctx, A.window, W * 0.6, H * 0.64, H * 1.0, -0.2, 0.92 * a);
+    draw(ctx, A.column, W * 0.12, H * 0.58, H * 0.4, 0.14, 0.95 * a);
     const la = smooth(t, 8.0, 8.6) * a;
-    draw(ctx, A.lantern, W * 0.88 + Math.sin(t * 1.2) * 3 * U, H * 0.2, H * 0.36, Math.sin(t * 1.1) * 0.03, la);
+    draw(ctx, A.lantern, W * 0.88 + Math.sin(t * 1.2) * 3 * U, H * 0.36, H * 0.42, Math.sin(t * 1.1) * 0.03, la);
     ctx.restore();
     // the light washes back over the ink
     ctx.save();
@@ -334,8 +338,8 @@ function shotViolet(ctx, st, t) {
   ctx.translate(-W / 2 - lt * W * 0.01, -H / 2);
   const a = smooth(t, T.violet, T.violet + 0.5);
   // books upper right, the lamp hanging at the left, the star map lower right
-  draw(ctx, A.books, W * 0.78, H * 0.26, H * 0.62, 0.05, 0.85 * a);
-  draw(ctx, A.lanternLight, W * 0.1, H * 0.22, H * 0.5, Math.sin(t * 1.1) * 0.03 - 0.05, 0.8 * a);
+  draw(ctx, A.books, W * 0.8, H * 0.3, H * 0.78, 0.0, 0.85 * a);
+  draw(ctx, A.lanternLight, W * 0.06, H * 0.25, -H * 0.42, Math.sin(t * 1.1) * 0.03 + 0.04, 0.85 * a);
   draw(ctx, A.starMap, W * 0.72, H * 0.92, H * 0.95, -0.12, 0.95 * a);
   ctx.restore();
   // a soft flare drifts across the frame
@@ -434,7 +438,7 @@ function lilacLight(ctx, st, t, dark) {
   for (let i = 0; i < 9; i++) {
     const a = -Math.PI / 2 + (i - 4) * 0.22 + Math.sin(t * 0.3 + i) * 0.03;
     const len = H * 1.4;
-    ctx.fillStyle = `rgba(255,220,255,${0.05 + 0.04 * hash(i)})`;
+    ctx.fillStyle = `rgba(255,220,255,${0.03 + 0.03 * hash(i)})`;
     ctx.beginPath();
     ctx.moveTo(W * 0.45, H * 0.55);
     ctx.lineTo(W * 0.45 + Math.cos(a - 0.04) * len, H * 0.55 + Math.sin(a - 0.04) * len);
@@ -474,10 +478,10 @@ function shotLilac(ctx, st, t) {
   lilacLight(ctx, st, t, dark);
   // luminous drawings, turning slowly
   const a = smooth(t, T.lilac, T.lilac + 0.4);
-  draw(ctx, A.sun, W * 0.83, H * 0.05, H * 0.95, lt * 0.05, 0.75 * a, "lighter");
-  draw(ctx, A.clock, W * 0.14, H * 0.93, H * 1.05, -lt * 0.06, 0.6 * a * smooth(t, 13.6, 14.1), "lighter");
-  draw(ctx, A.chain, W * 0.24, H * 0.25, H * 0.7, 0.55, 0.7 * a * smooth(t, 13.8, 14.2), "lighter");
-  draw(ctx, A.chain, W * 0.88, H * 0.82, H * 0.7, -0.45, 0.7 * a * smooth(t, 13.9, 14.3), "lighter");
+  draw(ctx, A.sun, W * 0.8, H * 0.02, H * 1.25, lt * 0.04, 0.42 * a, "lighter");
+  draw(ctx, A.clock, W * 0.16, H * 1.0, H * 1.25, -lt * 0.05, 0.3 * a * smooth(t, 13.6, 14.1), "lighter");
+  draw(ctx, A.chain, W * 0.22, H * 0.22, H * 0.55, 0.75, 0.32 * a * smooth(t, 13.8, 14.2), "lighter");
+  draw(ctx, A.chain, W * 0.86, H * 0.84, H * 0.55, -0.6, 0.32 * a * smooth(t, 13.9, 14.3), "lighter");
   draw(ctx, A.star5, W * 0.33, H * 0.14, H * 0.1, lt * 0.2, 0.7 * a * smooth(t, 14.0, 14.3), "lighter");
   draw(ctx, A.star5, W * 0.58, H * 0.78, H * 0.08, -lt * 0.2, 0.6 * a * smooth(t, 14.1, 14.4), "lighter");
   for (let i = 0; i < 7; i++) {
