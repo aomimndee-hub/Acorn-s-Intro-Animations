@@ -12,6 +12,7 @@ const DEFAULTS = {
   caption: "CURTAIN CALL",
   accent: "#e60012",
   title: "ANCHOR",
+  spicaTitle: "Spica",
 };
 
 /** Animations the GM can choose from. Add new ones here. */
@@ -39,6 +40,12 @@ export const ANIMATIONS = [
     label: "Compass",
     description: "3D chrome lyrics, a vortex valley and a pocket compass; the token is bound by a golden rope and breaks free (about 47 s).",
     page: "compass.html",
+  },
+  {
+    id: "spica",
+    label: "Spica",
+    description: "Silver starlight: words in an ornate halo, a rising star and the title on the drop, then the token is born from its constellation (about 49 s).",
+    page: "spica.html",
   },
 ];
 
@@ -100,6 +107,22 @@ export function assaultPayload(team, leadIndex, target, overrides = {}) {
     target: tokenInfo(target),
     caption: overrides.caption ?? settings.caption,
     accent: overrides.accent ?? settings.accent,
+    nonce: Math.random().toString(36).slice(2),
+  };
+}
+
+/** Payload for Spica: one token, its name and the title card text. */
+export function spicaPayload(item, overrides = {}) {
+  const settings = loadSettings();
+  return {
+    animation: "spica",
+    itemId: item.id,
+    imageUrl: item.image?.url || "",
+    mime: item.image?.mime || "",
+    name: overrides.name ?? tokenName(item),
+    title: overrides.title ?? settings.spicaTitle,
+    reveal: overrides.reveal ?? settings.reveal,
+    revealBy: overrides.revealBy || "",
     nonce: Math.random().toString(36).slice(2),
   };
 }

@@ -30,8 +30,8 @@ GM เลือก token แล้วกดเล่น ผู้เล่นท
 - **Popover:** click the crystal icon in the toolbar, select a token on the map, then
   **▶ Play for everyone**. **Preview only for me** plays it on your screen only.
   (กดไอคอนคริสตัล → เลือก token → กด Play for everyone)
-- **Right-click:** right-click any image token → **Break Through**, **Anchor** or **Compass** (GM only).
-  (คลิกขวาที่ token → Break Through, Anchor หรือ Compass)
+- **Right-click:** right-click any image token → **Break Through**, **Anchor**, **Compass** or **Spica** (GM only).
+  (คลิกขวาที่ token → Break Through, Anchor, Compass หรือ Spica)
 - **Name / subtitle:** the name defaults to the token's label. You can rename it and add a subtitle.
 - **Reveal on map:** if ticked, a hidden token becomes visible on the map when the intro ends.
   (ติ๊ก “Make the token visible…” เพื่อให้ token ที่ซ่อนอยู่ปรากฏบนแผนที่หลังจบอนิเมชั่น)
@@ -63,6 +63,16 @@ The GM chooses the animation from the **Animation** menu in the popover.
   four-point star over a rising and falling tide ("high tide / low tide") and an old-TV switch-off.
   Code: `src/compass/gl.js` (3D) and `src/compass/scene.js` (timeline, 2D effects), music `public/audio/compass.mp3`.
   (อนิเมชัน 3D โทนน้ำเงินกรมท่า-ทอง token ปรากฏตอนยืนกลางแอ่งน้ำวนกับตอนถูกเชือกทองมัด แล้วจอร้าวและแตกเป็นเศษกระจก)
+- **Spica:** a silver, star-lit cutscene of about 49 s for one token, timed to `public/audio/spica.mp3`
+  (~117 BPM, bars of 2.06 s). The first half follows the source video re-timed onto the song:
+  "PEACE" / "SALVATION" / "THE LAST HOPE" inside a turning ornate halo, a star with "Now, let's bring back
+  the lost light.", rotating squares with "There's nothing to fear anymore...", then the title on the drop
+  (16.23 s) with light beams crossing on every bar, and a turning glint with the crest on three bars.
+  In the break the Virgo constellation lights up and its lines gather into the token's silhouette.
+  The finale (34.8 s to the end) is an original design: the token is revealed in colour, and each bar
+  adds a motif (halo rings, the square star, warp streaks, constellation sparks, the crest and the name
+  card) before a white-out on the last beat. The title text (default `Spica`) can be changed in the popover.
+  (ครึ่งแรกตามวิดีโอต้นฉบับแต่ตรงจังหวะเพลง ช่วงหลังจาก 34.8 วิ ออกแบบใหม่ token ถือกำเนิดจากกลุ่มดาว)
   (อนิเมชันโทนน้ำเงิน-ขาว token 1 ตัว ชื่อ token ขึ้นตอนเปิด แล้วไปตามฉากใต้น้ำ ฝน ชายหาด สมอ ฟิล์ม และท้องฟ้า)
 
 To play All Out Attack, select 2–5 tokens: **the first is the lead and the last is the target**. Then press

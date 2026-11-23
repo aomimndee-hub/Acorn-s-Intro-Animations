@@ -8,10 +8,10 @@ const base = process.env.VITE_BASE || "/Acorn-s-Intro-Animations/";
 function manifest() {
   return {
     name: "Acorn's Intro Animations",
-    version: "1.4.0",
+    version: "1.5.0",
     manifest_version: 1,
     description:
-      "Cinematic token animations for the whole table: Break Through, All Out Attack, Anchor and Compass.",
+      "Cinematic token animations for the whole table: Break Through, All Out Attack, Anchor, Compass and Spica.",
     action: {
       title: "Intro Animations",
       icon: `${base}icon.svg`,
@@ -62,6 +62,7 @@ export default defineConfig({
         finisher: resolve(__dirname, "finisher.html"),
         anchor: resolve(__dirname, "anchor.html"),
         compass: resolve(__dirname, "compass.html"),
+        spica: resolve(__dirname, "spica.html"),
       },
     },
   },

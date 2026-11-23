@@ -1,6 +1,6 @@
 import OBR, { isImage } from "@owlbear-rodeo/sdk";
 import {
-  ANIMATIONS, CHANNEL, anchorPayload, animationById, assaultPayload, compassPayload, loadSettings, payloadFor, saveSettings,
+  ANIMATIONS, CHANNEL, anchorPayload, animationById, assaultPayload, compassPayload, loadSettings, payloadFor, saveSettings, spicaPayload,
   tokenName,
 } from "./shared.js";
 
@@ -33,8 +33,16 @@ function updateControls() {
   const anchor = mode() === "anchor";
   $("crystalFields").hidden = assault;
   $("assaultFields").hidden = !assault;
-  $("subtitleField").hidden = anchor || mode() === "compass";
-  $("titleField").hidden = !anchor;
+  const spica = mode() === "spica";
+  $("subtitleField").hidden = anchor || spica || mode() === "compass";
+  $("titleField").hidden = !(anchor || spica);
+  // Anchor and Spica keep separate title texts in the same field
+  const key = spica ? "spicaTitle" : "title";
+  if ($("title").dataset.key !== key) {
+    $("title").dataset.key = key;
+    $("title").value = loadSettings()[key];
+    $("title").placeholder = spica ? "Spica" : "ANCHOR";
+  }
   $("animDesc").textContent = animationById(mode()).description;
   $("hint").innerHTML = assault
     ? "Tip: select 2–5 tokens. <b>First = lead, last = target.</b> Click any card to replace it with the selected token."
@@ -189,6 +197,17 @@ async function play(destination) {
     return;
   }
   if (!current) return;
+  if (mode() === "spica") {
+    const settings = saveSettings({ spicaTitle: $("title").value.trim() || "Spica", reveal: $("reveal").checked });
+    const payload = spicaPayload(current, {
+      name: $("name").value.trim() || tokenName(current),
+      title: settings.spicaTitle,
+      reveal: destination === "ALL" && settings.reveal,
+      revealBy: OBR.player.id,
+    });
+    await OBR.broadcast.sendMessage(CHANNEL, payload, { destination });
+    return;
+  }
   if (mode() === "compass") {
     const settings = saveSettings({ reveal: $("reveal").checked });
     const payload = compassPayload(current, {
@@ -254,7 +273,10 @@ OBR.onReady(async () => {
   });
   $("name").addEventListener("input", () => (nameEdited = true));
   $("subtitle").addEventListener("change", () => saveSettings({ subtitle: $("subtitle").value.trim() }));
-  $("title").addEventListener("change", () => saveSettings({ title: $("title").value.trim() || "ANCHOR" }));
+  $("title").addEventListener("change", () => {
+    const key = $("title").dataset.key || "title";
+    saveSettings({ [key]: $("title").value.trim() || (key === "spicaTitle" ? "Spica" : "ANCHOR") });
+  });
   $("reveal").addEventListener("change", () => saveSettings({ reveal: $("reveal").checked }));
   $("caption").addEventListener("change", () => saveSettings({ caption: $("caption").value.trim() || "CURTAIN CALL" }));
   $("accent").addEventListener("input", () => saveSettings({ accent: $("accent").value }));
