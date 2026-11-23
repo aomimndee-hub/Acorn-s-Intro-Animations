@@ -323,44 +323,59 @@ function travel(ctx, st, t, amount) {
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
 
-  // speed lines: always streaming out from the vanishing point
+  // speed lines: always streaming out from the vanishing point.
+  // Batched into three brightness bands (one stroke each) for speed.
+  const bands = [[], [], []];
   for (let i = 0; i < 90; i++) {
     const a = hash(i * 7 + 3) * TAU;
     const d = (hash(i * 13) + ph * (0.9 + hash(i * 5) * 0.8)) % 1;
     const r0 = Math.pow(d, 1.8) * D;
     const len = (0.04 + d * 0.32) * D;
-    const al = Math.sin(d * Math.PI) * 0.5 * amount;
-    if (al < 0.01) continue;
-    const g = ctx.createLinearGradient(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0, cx + Math.cos(a) * (r0 + len), cy + Math.sin(a) * (r0 + len));
-    g.addColorStop(0, "rgba(255,255,255,0)");
-    g.addColorStop(1, `rgba(235,240,255,${al})`);
-    ctx.strokeStyle = g;
-    ctx.lineWidth = (0.6 + d * 2.4) * U;
-    ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
-    ctx.lineTo(cx + Math.cos(a) * (r0 + len), cy + Math.sin(a) * (r0 + len));
-    ctx.stroke();
+    const c = Math.cos(a);
+    const sn = Math.sin(a);
+    bands[d < 0.33 ? 0 : d < 0.7 ? 1 : 2].push([cx + c * r0, cy + sn * r0, cx + c * (r0 + len), cy + sn * (r0 + len), d]);
   }
+  const bandStyle = [[0.18, 0.8], [0.42, 1.6], [0.32, 2.6]];
+  bands.forEach((lines, b) => {
+    if (!lines.length) return;
+    ctx.strokeStyle = `rgba(235,240,255,${bandStyle[b][0] * amount})`;
+    ctx.lineWidth = bandStyle[b][1] * U;
+    ctx.beginPath();
+    for (const [x0, y0, x1, y1] of lines) {
+      // start a little way along so each line fades in from its tail
+      ctx.moveTo(lerp(x0, x1, 0.35), lerp(y0, y1, 0.35));
+      ctx.lineTo(x1, y1);
+    }
+    ctx.stroke();
+  });
 
-  // small stars rushing past, drawn as short trails
+  // small stars rushing past, drawn as short trails (batched by nearness)
   const proj = (x, y, z) => [cx + (x / z) * F, cy + (y / z) * F];
-  for (let i = 0; i < 220; i++) {
+  const trails = [[], [], []];
+  for (let i = 0; i < 200; i++) {
     const x = (hash(i * 3) - 0.5) * 4;
     const y = (hash(i * 5) - 0.5) * 2.6;
     if (Math.abs(x) < 0.08 && Math.abs(y) < 0.08) continue;
     const z = 1 - ((hash(i * 7) + ph * 0.55) % 1) * 0.94;
     const z2 = Math.min(1, z + 0.03 + 0.04 * amount);
     const [px, py] = proj(x, y, z);
-    const [qx, qy] = proj(x, y, z2);
     if (px < -20 || px > W + 20 || py < -20 || py > H + 20) continue;
+    const [qx, qy] = proj(x, y, z2);
     const near = 1 - z;
-    ctx.strokeStyle = `rgba(255,255,255,${(0.25 + 0.75 * near) * amount})`;
-    ctx.lineWidth = (0.5 + near * 2.5) * U;
-    ctx.beginPath();
-    ctx.moveTo(qx, qy);
-    ctx.lineTo(px, py);
-    ctx.stroke();
+    trails[near < 0.4 ? 0 : near < 0.75 ? 1 : 2].push([qx, qy, px, py]);
   }
+  const trailStyle = [[0.35, 0.7], [0.6, 1.5], [0.95, 2.6]];
+  trails.forEach((list, b) => {
+    if (!list.length) return;
+    ctx.strokeStyle = `rgba(255,255,255,${trailStyle[b][0] * amount})`;
+    ctx.lineWidth = trailStyle[b][1] * U;
+    ctx.beginPath();
+    for (const [x0, y0, x1, y1] of list) {
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+    }
+    ctx.stroke();
+  });
 
   // constellations floating toward us and sliding past
   const LANES = 3;
@@ -384,17 +399,18 @@ function travel(ctx, st, t, amount) {
       const ry = x * Math.sin(rot) + y * Math.cos(rot);
       return proj(ox + rx * sc, oy + ry * sc, z);
     });
-    ctx.strokeStyle = `rgba(230,236,255,${0.8 * al})`;
-    ctx.shadowColor = "rgba(255,255,255,0.9)";
-    ctx.shadowBlur = 6 * U;
-    ctx.lineWidth = (1.2 + (1 - z) * 2.4) * U;
+    const lw = (1.2 + (1 - z) * 2.4) * U;
     ctx.beginPath();
     for (const [a, b] of shape.lines) {
       ctx.moveTo(pts[a][0], pts[a][1]);
       ctx.lineTo(pts[b][0], pts[b][1]);
     }
+    ctx.strokeStyle = `rgba(200,212,255,${0.22 * al})`;
+    ctx.lineWidth = lw * 4;
     ctx.stroke();
-    ctx.shadowBlur = 0;
+    ctx.strokeStyle = `rgba(235,240,255,${0.85 * al})`;
+    ctx.lineWidth = lw;
+    ctx.stroke();
     const size = H * (0.05 + (1 - z) * 0.2);
     pts.forEach(([x, y], n) => {
       const tw = 0.75 + 0.25 * Math.sin(t * 5 + n + id);
@@ -409,7 +425,7 @@ function travel(ctx, st, t, amount) {
 function spectrum(ctx, st, t, amount) {
   if (amount <= 0.01) return;
   const { W, H, U } = st;
-  const N = 48;
+  const N = 22;
   const v = new Array(N);
   if (st.freq && st.analyser) {
     const f = st.freq;
@@ -432,32 +448,23 @@ function spectrum(ctx, st, t, amount) {
       v[i] = clamp(tilt * (0.18 + 0.55 * bp * (i < 10 ? 1 : 0.5) + 0.35 * bars) * (0.5 + 0.6 * n));
     }
   }
+  // left and right edges only: thin bars mirrored up and down from the middle
+  const maxW = H * 0.075;
+  const step = H / 2 / N;
+  const th = Math.max(1, step * 0.28);
+  const path = new Path2D();
+  for (let i = 0; i < N; i++) {
+    const w = Math.max(1.5 * U, v[i] * maxW);
+    for (const side of [-1, 1]) {
+      const y = H / 2 + side * (i + 0.5) * step - th / 2;
+      path.rect(0, y, w, th);
+      path.rect(W - w, y, w, th);
+    }
+  }
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.fillStyle = `rgba(240,244,255,${0.85 * amount})`;
-  ctx.shadowColor = "rgba(255,255,255,0.9)";
-  ctx.shadowBlur = 8 * U;
-  const maxH = H * 0.11;
-  // bottom and top: mirrored from the centre outward
-  const bw = W / 2 / N;
-  for (let i = 0; i < N; i++) {
-    const h = Math.max(1.5 * U, v[i] * maxH);
-    for (const side of [-1, 1]) {
-      const x = W / 2 + side * (i + 0.5) * bw - bw * 0.3;
-      ctx.fillRect(x, H - h, bw * 0.6, h);
-      ctx.fillRect(x, 0, bw * 0.6, h * 0.75);
-    }
-  }
-  // left and right: mirrored from the middle up and down
-  const bh = H / 2 / N;
-  for (let i = 0; i < N; i++) {
-    const w = Math.max(1.5 * U, v[i] * maxH * 0.8);
-    for (const side of [-1, 1]) {
-      const y = H / 2 + side * (i + 0.5) * bh - bh * 0.3;
-      ctx.fillRect(0, y, w, bh * 0.6);
-      ctx.fillRect(W - w, y, w, bh * 0.6);
-    }
-  }
+  ctx.fillStyle = `rgba(240,244,255,${0.8 * amount})`;
+  ctx.fill(path);
   ctx.restore();
 }
 
@@ -487,14 +494,16 @@ function backdrop(ctx, st, t, lift = 0) {
   }
   ctx.restore();
   // star dust
+  const dust = [new Path2D(), new Path2D(), new Path2D()];
   for (let i = 0; i < 90; i++) {
-    const x = W * hash(i * 3);
-    const y = H * hash(i * 7);
-    const tw = 0.35 + 0.65 * Math.abs(Math.sin(t * (0.6 + hash(i) * 2) + i));
-    ctx.fillStyle = `rgba(255,255,255,${0.25 + 0.55 * tw * hash(i * 11)})`;
+    const tw = Math.abs(Math.sin(t * (0.6 + hash(i) * 2) + i)) * hash(i * 11);
     const r = (0.6 + hash(i * 13) * 1.3) * U;
-    ctx.fillRect(x, y, r, r);
+    dust[tw < 0.25 ? 0 : tw < 0.55 ? 1 : 2].rect(W * hash(i * 3), H * hash(i * 7), r, r);
   }
+  [0.3, 0.55, 0.85].forEach((a, k) => {
+    ctx.fillStyle = `rgba(255,255,255,${a})`;
+    ctx.fill(dust[k]);
+  });
   // a few hollow rings drifting, like the source's floating bubbles
   ctx.strokeStyle = "rgba(255,255,255,0.35)";
   ctx.lineWidth = U;
@@ -548,17 +557,25 @@ function squares(ctx, st, t, count, size, spin, alpha, cx, cy) {
   const { U } = st;
   ctx.save();
   ctx.translate(cx, cy);
-  ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
-  ctx.shadowColor = "rgba(255,255,255,0.8)";
-  ctx.shadowBlur = 8 * U;
-  ctx.lineWidth = 1.6 * U;
+  const path = new Path2D();
   for (let i = 0; i < count; i++) {
-    ctx.save();
-    ctx.rotate((i / Math.max(1, count)) * (Math.PI / 2) + spin * (1 + i * 0.12));
-    const s = size * (1 + (i % 2) * 0.04);
-    ctx.strokeRect(-s / 2, -s / 2, s, s);
-    ctx.restore();
+    const a = (i / Math.max(1, count)) * (Math.PI / 2) + spin * (1 + i * 0.12);
+    const s = (size * (1 + (i % 2) * 0.04)) / 2;
+    const c = Math.cos(a);
+    const sn = Math.sin(a);
+    const corner = (x, y) => [x * c - y * sn, x * sn + y * c];
+    const p = [corner(-s, -s), corner(s, -s), corner(s, s), corner(-s, s)];
+    path.moveTo(p[0][0], p[0][1]);
+    for (let k = 1; k < 4; k++) path.lineTo(p[k][0], p[k][1]);
+    path.closePath();
   }
+  // soft wide pass for the glow, then the crisp line
+  ctx.strokeStyle = `rgba(255,255,255,${alpha * 0.18})`;
+  ctx.lineWidth = 6 * U;
+  ctx.stroke(path);
+  ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+  ctx.lineWidth = 1.6 * U;
+  ctx.stroke(path);
   ctx.restore();
 }
 
@@ -929,7 +946,7 @@ function chromatic(ctx, st, px) {
 
 /** Zoom smear: brighter, larger copies of the frame stacked over it. */
 function zoomBlur(ctx, st, amount) {
-  if (amount < 0.03) return;
+  if (amount < 0.12) return;
   const c = ctx.canvas;
   const src = tempCanvas(st, "zoom", c.width, c.height);
   const sx = src.getContext("2d");
@@ -938,9 +955,9 @@ function zoomBlur(ctx, st, amount) {
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalCompositeOperation = "lighter";
-  for (let i = 1; i <= 3; i++) {
-    const s = 1 + amount * 0.05 * i;
-    ctx.globalAlpha = amount * 0.16 / i;
+  for (let i = 1; i <= 2; i++) {
+    const s = 1 + amount * 0.06 * i;
+    ctx.globalAlpha = amount * 0.18 / i;
     ctx.drawImage(src, (c.width - c.width * s) / 2, (c.height - c.height * s) * 0.48, c.width * s, c.height * s);
   }
   ctx.restore();
@@ -1024,7 +1041,9 @@ export function render(ctx, st, t) {
     // every other bar glitches on its downbeat; the climax glitches more
     const barNo = Math.floor((t - DROP) / BAR);
     if (barNo % 2 === 1 || t >= T.final) glitch(ctx, st, t, e.bar);
-    chromatic(ctx, st, (e.bar * 9 + e.beat * 3) * (ctx.canvas.width / W) * U);
+    // the RGB split copies the frame three times, so keep it to the bar hits
+    const px = e.bar * 9 * (ctx.canvas.width / W) * U;
+    if (px >= 2) chromatic(ctx, st, px);
   }
   spectrum(ctx, st, t, travelAmount(t) > 0 ? Math.max(0.35, travelAmount(t)) : 0);
   if (t > T.peace && t < T.out) {
@@ -1032,7 +1051,11 @@ export function render(ctx, st, t) {
     ctx.globalAlpha = 0.8;
     const f = Math.floor(t * 24);
     ctx.translate(-Math.floor(hash(f) * 256), -Math.floor(hash(f + 9) * 256));
-    ctx.fillStyle = ctx.createPattern(st.S.grain, "repeat");
+    if (!st._grainPat || st._grainCtx !== ctx) {
+      st._grainPat = ctx.createPattern(st.S.grain, "repeat");
+      st._grainCtx = ctx;
+    }
+    ctx.fillStyle = st._grainPat;
     ctx.fillRect(0, 0, W + 256, H + 256);
     ctx.restore();
   }

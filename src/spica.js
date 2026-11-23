@@ -43,11 +43,14 @@ function readPayload() {
 const payload = readPayload();
 const state = { W: 0, H: 0, U: 1, name: payload.name, title: payload.title };
 
+// Render scale drops automatically if frames run slow (see frame()).
+let quality = 1;
+
 function resize() {
   const W = innerWidth;
   const H = innerHeight;
-  let dpr = Math.min(devicePixelRatio || 1, 1.75);
-  const maxPixels = 3.4e6;
+  let dpr = Math.min(devicePixelRatio || 1, 1.5) * quality;
+  const maxPixels = 2.3e6 * quality * quality;
   if (W * H * dpr * dpr > maxPixels) dpr = Math.sqrt(maxPixels / (W * H));
   canvas.width = Math.round(W * dpr);
   canvas.height = Math.round(H * dpr);
@@ -146,8 +149,23 @@ async function finish() {
   if (inOBR) OBR.modal.close(MODAL_ID);
 }
 
+let lastStamp = 0;
+let lastDrop = 0;
+let frameMs = 16;
+
 function frame() {
   if (finished) return;
+  const stamp = performance.now();
+  if (lastStamp) {
+    frameMs = frameMs * 0.92 + Math.min(stamp - lastStamp, 100) * 0.08;
+    // steadily slow: render fewer pixels (down to 60%), never back up mid-play
+    if (frameMs > 24 && quality > 0.6 && stamp - lastDrop > 1500) {
+      quality = Math.max(0.6, quality * 0.85);
+      lastDrop = stamp;
+      resize();
+    }
+  }
+  lastStamp = stamp;
   const t = now();
   if (state.analyser) state.analyser.getByteFrequencyData(state.freq);
   render(ctx, state, Math.min(t, T.end));
