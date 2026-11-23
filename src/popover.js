@@ -34,20 +34,25 @@ function updateControls() {
   $("crystalFields").hidden = assault;
   $("assaultFields").hidden = !assault;
   const spica = mode() === "spica";
-  $("subtitleField").hidden = anchor || spica || mode() === "compass";
-  $("titleField").hidden = !(anchor || spica);
-  // Anchor and Spica keep separate title texts in the same field
-  const key = spica ? "spicaTitle" : "title";
+  const sort = mode() === "sortilege";
+  $("subtitleField").hidden = anchor || spica || sort || mode() === "compass";
+  $("titleField").hidden = !(anchor || spica || sort);
+  // no token for the Sortilege opening: hide the token-only fields
+  $("preview").hidden = sort;
+  $("name").closest("label").hidden = sort;
+  $("reveal").closest("label").hidden = sort;
+  // Anchor, Spica and Sortilege keep separate title texts in the same field
+  const key = sort ? "sortTitle" : spica ? "spicaTitle" : "title";
   if ($("title").dataset.key !== key) {
     $("title").dataset.key = key;
     $("title").value = loadSettings()[key];
-    $("title").placeholder = spica ? "Spica" : "ANCHOR";
+    $("title").placeholder = sort ? "Sortilege" : spica ? "Spica" : "ANCHOR";
   }
   $("animDesc").textContent = animationById(mode()).description;
   $("hint").innerHTML = assault
     ? "Tip: select 2–5 tokens. <b>First = lead, last = target.</b> Click any card to replace it with the selected token."
     : `Tip: you can also right-click a token → <b>${animationById(mode()).label}</b>.`;
-  const ready = assault ? team.some(Boolean) && !!target : !!current;
+  const ready = assault ? team.some(Boolean) && !!target : animationById(mode()).noToken || !!current;
   $("play").disabled = $("preview-btn").disabled = !ready;
 }
 
@@ -196,6 +201,12 @@ async function play(destination) {
     await OBR.broadcast.sendMessage(CHANNEL, payload, { destination });
     return;
   }
+  if (mode() === "sortilege") {
+    const settings = saveSettings({ sortTitle: $("title").value.trim() || "Sortilege" });
+    const payload = { animation: "sortilege", title: settings.sortTitle, nonce: Math.random().toString(36).slice(2) };
+    await OBR.broadcast.sendMessage(CHANNEL, payload, { destination });
+    return;
+  }
   if (!current) return;
   if (mode() === "spica") {
     const settings = saveSettings({ spicaTitle: $("title").value.trim() || "Spica", reveal: $("reveal").checked });
@@ -275,7 +286,8 @@ OBR.onReady(async () => {
   $("subtitle").addEventListener("change", () => saveSettings({ subtitle: $("subtitle").value.trim() }));
   $("title").addEventListener("change", () => {
     const key = $("title").dataset.key || "title";
-    saveSettings({ [key]: $("title").value.trim() || (key === "spicaTitle" ? "Spica" : "ANCHOR") });
+    const fallback = { spicaTitle: "Spica", sortTitle: "Sortilege" }[key] || "ANCHOR";
+    saveSettings({ [key]: $("title").value.trim() || fallback });
   });
   $("reveal").addEventListener("change", () => saveSettings({ reveal: $("reveal").checked }));
   $("caption").addEventListener("change", () => saveSettings({ caption: $("caption").value.trim() || "CURTAIN CALL" }));

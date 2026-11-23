@@ -13,6 +13,7 @@ const DEFAULTS = {
   accent: "#e60012",
   title: "ANCHOR",
   spicaTitle: "Spica",
+  sortTitle: "Sortilege",
 };
 
 /** Animations the GM can choose from. Add new ones here. */
@@ -46,6 +47,13 @@ export const ANIMATIONS = [
     label: "Spica",
     description: "Silver starlight: words in an ornate halo, a rising star and the title on the drop, then the token is born from its constellation (about 49 s).",
     page: "spica.html",
+  },
+  {
+    id: "sortilege",
+    label: "Sortilege",
+    description: "An opening title in three chapters (sepia, violet, lilac) ending on ~SORTILEGE~ the spellkeeper. No token needed (about 19 s).",
+    page: "sortilege.html",
+    noToken: true,
   },
 ];
 

@@ -73,6 +73,14 @@ The GM chooses the animation from the **Animation** menu in the popover.
   adds a motif (halo rings, the square star, warp streaks, constellation sparks, the crest and the name
   card) before a white-out on the last beat. The title text (default `Spica`) can be changed in the popover.
   (ครึ่งแรกตามวิดีโอต้นฉบับแต่ตรงจังหวะเพลง ช่วงหลังจาก 34.8 วิ ออกแบบใหม่ token ถือกำเนิดจากกลุ่มดาว)
+- **Sortilege:** an 18.9 s opening title, no token needed. "a new era of sorcery" glitches in on black;
+  a warm sepia light opens onto engraved Gothic columns, a window and a lantern over dictionary text, with the
+  torn-paper label "I. The magic of time" typing on; a page curl turns to a violet library (lamp, books,
+  star map) and "II. The fount of knowledge"; a flash into lilac brings luminous clock, sun and bead chains
+  with "III. The sight of everything imaginable" pulling together; then "~SORTILEGE~ the spellkeeper",
+  a grey flash and a fade to black. All drawings are generated in `src/sortilege/art.js`; the title text can
+  be changed in the popover. Music: `public/audio/sortilege.mp3`.
+  (ฉากเปิดไม่ใช้ token: ตัวอักษร glitch, ภาพลายเส้นโกธิกโทนซีเปีย, พลิกหน้ากระดาษเข้าห้องสมุดม่วง, ฉากชมพูม่วงกับนาฬิกาและดวงอาทิตย์, จบที่ชื่อ SORTILEGE)
   (อนิเมชันโทนน้ำเงิน-ขาว token 1 ตัว ชื่อ token ขึ้นตอนเปิด แล้วไปตามฉากใต้น้ำ ฝน ชายหาด สมอ ฟิล์ม และท้องฟ้า)
 
 To play All Out Attack, select 2–5 tokens: **the first is the lead and the last is the target**. Then press
