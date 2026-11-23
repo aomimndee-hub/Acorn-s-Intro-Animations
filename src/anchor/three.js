@@ -175,6 +175,95 @@ function circleTexture(drawCircle) {
   return tex;
 }
 
+
+// Underwater backdrop as one full-screen shader: a sea floor in perspective
+// lit by animated caustics, light shafts from the surface, and depth fog.
+const SEA_FRAG = /* glsl */ `
+  precision highp float;
+  uniform vec2 res;
+  uniform float time;
+  uniform float bloom;
+  varying vec2 vUv;
+  #define TAU 6.28318530718
+
+  // Tileable water caustics (iterated trig warp).
+  float caustic(vec2 uv, float t) {
+    vec2 p = mod(uv * TAU, TAU) - 250.0;
+    vec2 i = p;
+    float c = 1.0;
+    float inten = 0.005;
+    for (int n = 0; n < 5; n++) {
+      float tt = t * (1.0 - (3.5 / float(n + 1)));
+      i = p + vec2(cos(tt - i.x) + sin(tt + i.y), sin(tt - i.y) + cos(tt + i.x));
+      c += 1.0 / length(vec2(p.x / (sin(i.x + tt) / inten), p.y / (cos(i.y + tt) / inten)));
+    }
+    c /= 5.0;
+    c = 1.17 - pow(c, 1.4);
+    return pow(abs(c), 8.0);
+  }
+
+  float hash(float n) { return fract(sin(n) * 43758.5453); }
+  float noise(float x) { float i = floor(x); float f = fract(x); return mix(hash(i), hash(i + 1.0), f * f * (3.0 - 2.0 * f)); }
+
+  void main() {
+    vec2 uv = vUv;
+    float aspect = res.x / res.y;
+    vec2 p = vec2((uv.x - 0.5) * aspect, uv.y - 0.5);
+
+    // camera slightly above the floor, looking a little down
+    vec3 ro = vec3(0.0, 1.0, time * 0.18);
+    vec3 rd = normalize(vec3(p.x, p.y - 0.12, 1.1));
+
+    vec3 deep = vec3(0.07, 0.17, 0.55);
+    vec3 mid = vec3(0.13, 0.33, 0.80);
+    vec3 shallow = vec3(0.42, 0.62, 0.98);
+    // water column: lighter toward the surface and the sun above centre
+    float up = clamp(rd.y * 1.6 + 0.55, 0.0, 1.0);
+    vec3 water = mix(deep, mid, up);
+    float sun = exp(-pow(length(vec2(p.x * 0.75, p.y - 0.75)), 2.0) * 2.4);
+    water = mix(water, shallow, sun * 0.75);
+
+    vec3 col = water;
+    if (rd.y < 0.0) {
+      float dist = -ro.y / rd.y;
+      vec3 hit = ro + rd * dist;
+      vec2 fp = hit.xz * 0.32;
+      float c1 = caustic(fp, time * 0.55);
+      float c2 = caustic(fp * 1.3 + 0.37, time * 0.47 + 1.7);
+      float caus = (c1 * 0.65 + c2 * 0.45);
+      // soften with distance so far caustics blur into the haze
+      float far = clamp(dist / 14.0, 0.0, 1.0);
+      caus = mix(caus, 0.25, far);
+      vec3 floorCol = mix(vec3(0.10, 0.25, 0.70), vec3(0.20, 0.38, 0.85), clamp(-p.y * 1.5, 0.0, 1.0));
+      floorCol += vec3(0.55, 0.72, 1.0) * caus * (1.0 - far * 0.7);
+      float fog = 1.0 - exp(-dist * 0.16);
+      col = mix(floorCol, water, fog);
+    }
+
+    // light shafts fanning down from the surface
+    vec2 src = vec2(0.0, 1.25);
+    vec2 d = p - src;
+    float ang = atan(d.x, -d.y);
+    float rays = noise(ang * 14.0 + time * 0.25) * 0.6 + noise(ang * 31.0 - time * 0.4) * 0.4;
+    rays = pow(rays, 3.0);
+    float fall = smoothstep(1.9, 0.2, length(d)) * smoothstep(-0.55, 0.25, p.y);
+    col += vec3(0.45, 0.62, 1.0) * rays * fall * 0.42;
+
+    // suspended haze and vignette
+    float vig = smoothstep(1.25, 0.35, length(p * vec2(0.85, 1.0)));
+    col *= mix(0.62, 1.0, vig);
+
+    // dissolve into the white light that ends the shot
+    // a burst of light from the centre; the blue edges hold until the very end
+    float r = length(vec2(p.x * 0.8, p.y + 0.02));
+    float glow = exp(-r * r / max(0.001, bloom * bloom * 0.35));
+    float wash = smoothstep(0.75, 1.0, bloom);
+    col = mix(col, vec3(0.93, 0.96, 1.0), clamp(glow * min(1.0, bloom * 1.6) + wash, 0.0, 1.0));
+
+    gl_FragColor = vec4(col, 1.0);
+  }
+`;
+
 export function create3D(drawCircle) {
   let renderer;
   try {
@@ -220,6 +309,17 @@ export function create3D(drawCircle) {
     new THREE.MeshBasicMaterial({ map: circleTexture(drawCircle), transparent: true, depthWrite: false, side: THREE.DoubleSide }),
   );
   scene.add(disc);
+
+  const seaScene = new THREE.Scene();
+  const seaCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const seaMat = new THREE.ShaderMaterial({
+    uniforms: { res: { value: new THREE.Vector2(1, 1) }, time: { value: 0 }, bloom: { value: 0 } },
+    vertexShader: "varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }",
+    fragmentShader: SEA_FRAG,
+    depthTest: false,
+    depthWrite: false,
+  });
+  seaScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), seaMat));
 
   const guitar = makeGuitar(guitarBody, guitarNeck);
   scene.add(guitar);
@@ -315,6 +415,15 @@ export function create3D(drawCircle) {
       cityCam.up.set(-Math.sin(roll), -Math.cos(roll) * 0.2, -Math.cos(roll));
       cityCam.lookAt(-1.5, 24, 9);
       renderer.render(scene, cityCam);
+    },
+
+    /** Underwater backdrop: caustic floor, light shafts, fog. */
+    sea(W, H, dpr, t, bloom) {
+      setSize(W, H, dpr);
+      seaMat.uniforms.res.value.set(W, H);
+      seaMat.uniforms.time.value = t;
+      seaMat.uniforms.bloom.value = bloom;
+      renderer.render(seaScene, seaCam);
     },
 
     /** Guitar held in front of the floating token. */

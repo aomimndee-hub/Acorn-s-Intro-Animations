@@ -118,7 +118,31 @@ export function buildTokenSet(img) {
   s.fillStyle = "rgba(20,40,170,0.45)";
   s.fillRect(0, 0, S, S);
 
-  return { size: S, base, duo, sea, blue: tint(base, BLUE), white: tint(base, "#fff"), navy: tint(base, NAVY) };
+  // dark navy body that keeps a little of the token's own shading,
+  // with violet light catching its upper-left edges
+  const deep = makeCanvas(S, S);
+  const dp = deep.getContext("2d");
+  const rimC = tint(base, "#8f7dff");
+  dp.globalAlpha = 0.9;
+  dp.drawImage(rimC, -5, -6);
+  dp.globalAlpha = 0.5;
+  dp.drawImage(rimC, 4, -3);
+  dp.globalAlpha = 1;
+  const body = makeCanvas(S, S);
+  const bx = body.getContext("2d");
+  bx.drawImage(base, 0, 0);
+  bx.globalCompositeOperation = "source-atop";
+  bx.fillStyle = "rgba(14,12,52,0.82)";
+  bx.fillRect(0, 0, S, S);
+  const shade = bx.createLinearGradient(0, 0, S * 0.4, S);
+  shade.addColorStop(0, "rgba(120,100,255,0.28)");
+  shade.addColorStop(0.5, "rgba(40,30,140,0)");
+  shade.addColorStop(1, "rgba(0,0,20,0.4)");
+  bx.fillStyle = shade;
+  bx.fillRect(0, 0, S, S);
+  dp.drawImage(body, 0, 0);
+
+  return { size: S, base, duo, sea, deep, blue: tint(base, BLUE), white: tint(base, "#fff"), navy: tint(base, NAVY) };
 }
 
 /** Token as a card turning in 3D: narrowed by cos(yaw) with a slight shear. */
@@ -266,6 +290,28 @@ function paperGrain() {
   return c;
 }
 
+function fishSprite(blur) {
+  const c = makeCanvas(160, 64);
+  const x = c.getContext("2d");
+  if (supportsFilter && blur) x.filter = `blur(${blur}px)`;
+  x.fillStyle = "rgba(6,10,34,0.92)";
+  x.beginPath();
+  x.moveTo(140, 32);
+  x.quadraticCurveTo(118, 14, 70, 18);
+  x.quadraticCurveTo(44, 22, 36, 32);
+  x.quadraticCurveTo(44, 42, 70, 46);
+  x.quadraticCurveTo(118, 50, 140, 32);
+  x.fill();
+  x.beginPath();
+  x.moveTo(40, 32);
+  x.lineTo(14, 16);
+  x.lineTo(20, 32);
+  x.lineTo(14, 48);
+  x.closePath();
+  x.fill();
+  return c;
+}
+
 /** Layers that depend on the screen size are cached per size. */
 function layers(st) {
   const key = `${st.W}x${st.H}`;
@@ -278,6 +324,7 @@ function layers(st) {
     globe: st._layers?.globe || globeTexture(256),
     clouds: st._layers?.clouds || [cloudLayer(3), cloudLayer(8), cloudLayer(14)],
     grain: st._layers?.grain || paperGrain(),
+    fish: st._layers?.fish || [fishSprite(0.6), fishSprite(2.2), fishSprite(5)],
   };
   st._layersKey = key;
   return st._layers;
@@ -690,7 +737,77 @@ function shotGlobe(ctx, st, t) {
   ctx.restore();
 }
 
+/** One fish of the school; depth 0 (far, blurred, small) to 1 (near). */
+function drawFish(ctx, L, x, y, len, ang, depth, alpha) {
+  const img = depth < 0.35 ? L.fish[2] : depth > 0.8 ? L.fish[0] : L.fish[1];
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  ctx.rotate(ang);
+  ctx.drawImage(img, -len * 0.55, -len * 0.2, len, len * 0.4);
+  ctx.restore();
+}
+
+function shotSeaGL(ctx, st, t) {
+  const { W, H, U } = st;
+  const lt = t - T.sea;
+  const L = layers(st);
+  const bloom = smooth(t, 4.82, T.words);
+  st.three.sea(W, H, st.dpr3, t, bloom);
+  // slow push in toward the character
+  const zoom = 1 + lt * 0.025;
+  ctx.save();
+  ctx.translate(W / 2, H / 2);
+  ctx.scale(zoom, zoom);
+  ctx.translate(-W / 2, -H / 2);
+  ctx.drawImage(st.three.canvas, -W * 0.02, -H * 0.02, W * 1.04, H * 1.04);
+  ctx.restore();
+
+  // marine snow drifting through the light
+  for (let i = 0; i < 70; i++) {
+    const depth = hash(i * 29);
+    const x = ((hash(i * 17) + lt * 0.006 * (hash(i * 3) - 0.5)) % 1) * W;
+    const y = ((((hash(i * 19) - lt * 0.012 * (0.4 + depth)) % 1) + 1) % 1) * H;
+    ctx.fillStyle = `rgba(210,228,255,${(0.12 + 0.4 * depth) * (1 - bloom)})`;
+    ctx.beginPath();
+    ctx.arc(x, y, (0.5 + depth * 1.8) * U, 0, TAU);
+    ctx.fill();
+  }
+
+  // the school: a ribbon of fish streaming past the character toward the lower right
+  const cx = W * 0.49;
+  const cy = H * 0.47 + Math.sin(t * 1.3) * H * 0.008;
+  const school = (front) => {
+    for (let i = 0; i < 34; i++) {
+      const depth = hash(i * 41);
+      if ((depth > 0.55) !== front) continue;
+      const u = (hash(i * 7) + lt * (0.05 + depth * 0.03)) % 1;
+      const along = lerp(-0.1, 1.15, u);
+      const bx = cx + W * (0.06 + along * 0.38);
+      const by = cy - H * 0.1 + along * H * 0.42 + Math.sin(along * 4 + i) * H * 0.02;
+      const spread = (hash(i * 13) - 0.5) * H * (0.06 + along * 0.14);
+      const len = (24 + depth * 46) * U;
+      const wiggle = Math.sin(t * 9 + i) * 0.08;
+      const fade = clamp(u * 6) * clamp((1 - u) * 5);
+      const a = fade * (0.55 + depth * 0.45) * (1 - bloom * 0.4);
+      // a faint trailing copy reads as motion blur
+      drawFish(ctx, L, bx + spread * 0.4 - len * 0.18, by + spread - len * 0.14, len, 0.72 + wiggle, depth * 0.5, a * 0.35);
+      drawFish(ctx, L, bx + spread * 0.4, by + spread, len, 0.72 + wiggle, depth, a);
+    }
+  };
+  school(false);
+
+  // title, slightly soft as if seen through water
+  const titleA = smooth(lt, 0, 0.3) * (1 - bloom);
+  text(ctx, st.title, W / 2, H * 0.3, H * 0.1, { color: "rgba(244,248,255,0.92)", glow: "rgba(180,210,255,0.85)", spacing: 0.005, alpha: titleA });
+
+  // the character: dark against the water, lit violet from above
+  tok(ctx, st.tok.deep, cx, cy, H * 0.3, -0.22 + Math.sin(t * 0.9) * 0.07);
+  school(true);
+}
+
 function shotSea(ctx, st, t) {
+  if (st.three) return shotSeaGL(ctx, st, t);
   const { W, H, U } = st;
   const lt = t - T.sea;
   const g = ctx.createLinearGradient(0, 0, 0, H);
