@@ -143,6 +143,10 @@ function shotEra(ctx, st, t) {
     }
   } else {
     text(ctx, str, x0, y0, size, { color: "#f4f1ea", alpha: out, glow: "rgba(255,255,255,0.35)" });
+    const lx = W * lerp(0.3, 0.72, prog(t, T.era + 0.6, T.eraOut));
+    textRays(ctx, st, (x) => text(x, str, x0, y0, size, { color: "#fff" }), lx, y0, 0.45 * out, "255,245,225");
+    text(ctx, str, x0, y0, size, { color: "#f4f1ea", alpha: out });
+    lensFlare(ctx, st, lx, y0, "255,225,180", 0.25 * out, 0.5);
   }
 }
 
@@ -323,6 +327,123 @@ function flare(ctx, st, x, y, rgb, alpha) {
   ctx.restore();
 }
 
+
+// ---- text light rays and lens flares -----------------------------------------------------
+
+/**
+ * Volumetric light through text: the words are drawn into a half-size layer,
+ * then stacked in growing copies around the light point (lx, ly) so their
+ * glow streams outward as rays. drawWords(x) draws the words in white.
+ */
+function textRays(ctx, st, drawWords, lx, ly, strength, rgb) {
+  if (strength <= 0.01) return;
+  const { W, H } = st;
+  const k = 0.5;
+  const w = Math.ceil(W * k);
+  const h = Math.ceil(H * k);
+  if (!st._rays || st._rays.width !== w || st._rays.height !== h) {
+    st._rays = makeCanvas(w, h);
+    st._rays2 = makeCanvas(w, h);
+  }
+  const a = st._rays.getContext("2d");
+  a.setTransform(1, 0, 0, 1, 0, 0);
+  a.clearRect(0, 0, w, h);
+  a.setTransform(k, 0, 0, k, 0, 0);
+  drawWords(a);
+  // tint the words to the light colour
+  a.setTransform(1, 0, 0, 1, 0, 0);
+  a.globalCompositeOperation = "source-in";
+  a.fillStyle = `rgb(${rgb})`;
+  a.fillRect(0, 0, w, h);
+  a.globalCompositeOperation = "source-over";
+  // two passes of radial smearing: short then long
+  const b = st._rays2.getContext("2d");
+  const smear = (src, dst, steps, reach, gain) => {
+    dst.setTransform(1, 0, 0, 1, 0, 0);
+    dst.clearRect(0, 0, w, h);
+    dst.globalCompositeOperation = "lighter";
+    for (let i = 0; i < steps; i++) {
+      const s = 1 + (reach * (i + 1)) / steps;
+      dst.globalAlpha = (1 - i / steps) * gain;
+      dst.setTransform(s, 0, 0, s, lx * k * (1 - s), ly * k * (1 - s));
+      dst.drawImage(src, 0, 0);
+    }
+    dst.setTransform(1, 0, 0, 1, 0, 0);
+    dst.globalAlpha = 1;
+    dst.globalCompositeOperation = "source-over";
+  };
+  smear(st._rays, b, 8, 0.1, 0.3);
+  smear(st._rays2, a, 8, 0.45, 0.16);
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.globalAlpha = Math.min(1, strength);
+  ctx.drawImage(st._rays, 0, 0, W, H);
+  ctx.restore();
+}
+
+/** A full lens flare: bright core, star glint, anamorphic streak, and ghosts mirrored through the centre. */
+function lensFlare(ctx, st, x, y, rgb, alpha, size = 1) {
+  const { W, H, A } = st;
+  if (alpha <= 0.01) return;
+  const S = H * size;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  // core and halo
+  const g = ctx.createRadialGradient(x, y, 0, x, y, S * 0.35);
+  g.addColorStop(0, `rgba(255,255,255,${alpha})`);
+  g.addColorStop(0.15, `rgba(${rgb},${alpha * 0.6})`);
+  g.addColorStop(1, `rgba(${rgb},0)`);
+  ctx.fillStyle = g;
+  ctx.fillRect(x - S * 0.35, y - S * 0.35, S * 0.7, S * 0.7);
+  // anamorphic streak
+  const sg = ctx.createLinearGradient(x - W * 0.7, 0, x + W * 0.7, 0);
+  sg.addColorStop(0, `rgba(${rgb},0)`);
+  sg.addColorStop(0.5, `rgba(255,255,255,${alpha * 0.9})`);
+  sg.addColorStop(1, `rgba(${rgb},0)`);
+  ctx.fillStyle = sg;
+  ctx.fillRect(x - W * 0.7, y - S * 0.006, W * 1.4, S * 0.012);
+  ctx.globalAlpha = 0.15 * alpha;
+  ctx.fillRect(x - W * 0.5, y - S * 0.02, W, S * 0.04);
+  // thin star glint
+  ctx.globalAlpha = alpha * 0.8;
+  ctx.fillStyle = "#fff";
+  for (const rot of [0, Math.PI / 2, Math.PI / 4, -Math.PI / 4]) {
+    const len = S * (rot % (Math.PI / 2) ? 0.12 : 0.22);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot);
+    ctx.beginPath();
+    ctx.moveTo(-len, 0);
+    ctx.lineTo(0, -S * 0.004);
+    ctx.lineTo(len, 0);
+    ctx.lineTo(0, S * 0.004);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  // ghosts along the line through the frame centre, with a faint rainbow ring
+  const cx = W / 2;
+  const cy = H / 2;
+  const ghosts = [[0.4, 0.05, 0.18], [0.75, 0.025, 0.28], [1.25, 0.09, 0.1], [1.6, 0.04, 0.2], [2.0, 0.14, 0.06]];
+  for (const [k, r, a] of ghosts) {
+    const gx = x + (cx - x) * k;
+    const gy = y + (cy - y) * k;
+    ctx.globalAlpha = alpha * a;
+    ctx.drawImage(A.bokeh, gx - S * r, gy - S * r, S * r * 2, S * r * 2);
+  }
+  const rx = x + (cx - x) * 1.45;
+  const ry = y + (cy - y) * 1.45;
+  ctx.globalAlpha = alpha * 0.08;
+  ctx.lineWidth = S * 0.006;
+  ["255,90,90", "255,220,90", "90,255,160", "90,160,255"].forEach((c, i) => {
+    ctx.strokeStyle = `rgb(${c})`;
+    ctx.beginPath();
+    ctx.arc(rx, ry, S * (0.2 + i * 0.012), 0, TAU);
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+
 // ---- chapter I: sepia architecture -------------------------------------------------------
 
 function sepiaLight(ctx, st, t) {
@@ -426,6 +547,7 @@ function shotSepia(ctx, st, t) {
   ctx.restore();
   cinematicLight(ctx, st, t, { sx: W * 0.92, sy: -H * 0.18, ang: 2.2, reach: 1.15, rgb: "255,236,196", shadow: "52,32,14", strength: 1, dark: 0.8 });
   lightLeak(ctx, st, t, W * 1.02, H * 0.15, "255,190,110", 0.35);
+  lensFlare(ctx, st, W * (0.86 - (t - T.sepia) * 0.01), H * 0.06, "255,214,160", 0.4 * smooth(t, T.sepia, T.sepia + 0.6), 0.9);
   vignette(ctx, st, 0.65, "30,18,6");
   // label I, typed onto torn paper
   label(ctx, st, t, A.paper1, "I. The magic of time", W * 0.64, H * 0.13, H * 0.115, T.label1, T.label1Out, -0.01, false);
@@ -539,7 +661,7 @@ function shotViolet(ctx, st, t) {
   ctx.drawImage(A.bokeh, fx - H * 0.06, H * 0.15 - H * 0.06, H * 0.12, H * 0.12);
   ctx.restore();
   cinematicLight(ctx, st, t, { sx: W * 0.32, sy: -H * 0.25, ang: 1.75, reach: 1.1, rgb: "170,190,255", shadow: "12,4,30", strength: 0.9, dark: 0.7 });
-  flare(ctx, st, W * (0.28 + (t - T.violet) * 0.012), H * 0.17, "150,200,255", 0.55);
+  lensFlare(ctx, st, W * (0.28 + (t - T.violet) * 0.012), H * 0.17, "150,200,255", 0.45, 0.9);
   lightLeak(ctx, st, t, -W * 0.02, H * 0.1, "120,170,255", 0.25);
   label(ctx, st, t, A.paper2, "II. The fount of knowledge", W * 0.44, H * 0.5, H * 0.115, T.label2, T.label2Out, -0.015, true);
   // the light swells before the cut
@@ -693,6 +815,14 @@ function shotLilac(ctx, st, t) {
     const glow = "rgba(230,120,255,0.9)";
     text(ctx, "III. The sight of everything", W * 0.5, H * 0.4, size, { weight: 600, spacing: sp, glow, alpha: sightA });
     text(ctx, "imaginable", W * 0.5, H * 0.55, size, { weight: 600, spacing: sp, glow, alpha: sightA });
+    const [lx, ly] = [W * lerp(0.3, 0.62, prog(t, T.sight, T.sightOut)), H * 0.5];
+    textRays(ctx, st, (x) => {
+      text(x, "III. The sight of everything", W * 0.5, H * 0.4, size, { color: "#fff", weight: 600, spacing: sp });
+      text(x, "imaginable", W * 0.5, H * 0.55, size, { color: "#fff", weight: 600, spacing: sp });
+    }, lx, ly, 0.9 * sightA, "255,200,255");
+    text(ctx, "III. The sight of everything", W * 0.5, H * 0.4, size, { weight: 600, spacing: sp, alpha: sightA });
+    text(ctx, "imaginable", W * 0.5, H * 0.55, size, { weight: 600, spacing: sp, alpha: sightA });
+    lensFlare(ctx, st, lx, H * 0.47, "255,170,250", 0.4 * sightA, 0.8);
     // a streak of light through the line
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
@@ -710,6 +840,10 @@ function shotLilac(ctx, st, t) {
   if (tA > 0) {
     const pop = 1 + Math.exp(-(t - T.title) / 0.12) * 0.12;
     titleCard(ctx, st, pop, tA, "rgba(220,110,255,1)", "#fbf4ff");
+    const [lx, ly] = sweep(st, t, T.title, 0.4);
+    textRays(ctx, st, titleWords(st, st._titleSize), lx, ly, tA * (0.9 + 0.4 * Math.exp(-(t - T.title) / 0.2)), "255,190,255");
+    titleWords(st, st._titleSize)(ctx);
+    lensFlare(ctx, st, lx, ly, "255,160,250", tA * 0.5, 0.9);
   }
 
   // the cut from the violet library lands on a white flash
@@ -728,10 +862,27 @@ function titleCard(ctx, st, pop, alpha, glow, color) {
   const w = ctx.measureText(str).width;
   ctx.restore();
   if (w > W * 0.9) size *= (W * 0.9) / w;
+  st._titleSize = size;
   // drawn twice: a soft halo pass, then the crisp letters
   text(ctx, str, W * 0.5, H * 0.47, size, { color, weight: 600, spacing: 0.03, glow, alpha: alpha * 0.8, italic: false });
   text(ctx, str, W * 0.5, H * 0.47, size, { color, weight: 600, spacing: 0.03, glow, alpha, italic: false });
   text(ctx, "the spellkeeper", W * 0.5, H * 0.47 + size * 0.6, size * 0.34, { color, weight: 600, glow, alpha });
+}
+
+/** The title words in plain white, for the light-ray layer. */
+function titleWords(st, size) {
+  const { W, H } = st;
+  return (x) => {
+    text(x, `~${st.title.toUpperCase()}~`, W * 0.5, H * 0.47, size, { color: "#fff", weight: 600, spacing: 0.03, italic: false });
+    text(x, "the spellkeeper", W * 0.5, H * 0.47 + size * 0.6, size * 0.34, { color: "#fff", weight: 600 });
+  };
+}
+
+/** Light point sweeping behind the title from left to right. */
+function sweep(st, t, t0, dur) {
+  const { W, H } = st;
+  const p = easeOutCubic(prog(t, t0, t0 + dur));
+  return [W * lerp(0.2, 0.75, p), H * 0.44];
 }
 
 function shotGrey(ctx, st, t) {
@@ -742,6 +893,10 @@ function shotGrey(ctx, st, t) {
   fill(ctx, W, H, `rgb(${v},${v},${v})`);
   const a = 1 - smooth(t, 16.25, 16.95);
   titleCard(ctx, st, 1, a, "rgba(255,255,255,0.95)", "#f6f6f6");
+  const [lx, ly] = sweep(st, t, T.grey, 0.9);
+  textRays(ctx, st, titleWords(st, st._titleSize), lx, ly, a * 0.9, "255,255,255");
+  titleWords(st, st._titleSize)(ctx);
+  lensFlare(ctx, st, lx, ly, "220,225,255", a * 0.3, 0.8);
   // horizontal light streak through the title
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
