@@ -55,13 +55,14 @@ The GM chooses the animation from the **Animation** menu in the popover.
   The anchor, its chain, the magic circle, the towers and the flying-V guitar are real 3D models
   (`src/anchor/three.js`, Three.js) with two-tone blue/white shading; the token stays on the 2D layer so
   tokens hosted without CORS headers still work. Without WebGL, 2D drawings stand in.
-- **Compass:** a 47 s cutscene for one token in 3D. Chrome serif lyrics (HOLD / ON / TIGHT / MY COMPASS is
-  CURIOSITY …) are real 3D text with a bloom pass. The token rises from a glowing vortex in a valley of rocks,
-  appears on the face of a 3D pocket compass during the tunnel dive and the close-up, is bound by a golden
-  rope ("you and me"), breaks free in a burst of lightning ("let us be FREE"), and ends under a four-point
-  star over a rising and falling tide ("high tide / low tide") before an old-TV switch-off.
+- **Compass:** a 47 s cutscene for one token in 3D, in navy and gold. Chrome serif lyrics (HOLD / ON /
+  TIGHT / MY COMPASS is CURIOSITY …) are real 3D text with a bloom pass. The token appears only twice:
+  standing at the centre of the glowing pool in a basin of rocks (with its reflection in the water), and
+  bound inside a golden rope ("you and me"). On "let us…" cracks spread across the screen beat by beat,
+  and on "BE" the whole frame shatters into glass shards that fly outward into FREE. It ends under a gold
+  four-point star over a rising and falling tide ("high tide / low tide") and an old-TV switch-off.
   Code: `src/compass/gl.js` (3D) and `src/compass/scene.js` (timeline, 2D effects), music `public/audio/compass.mp3`.
-  (อนิเมชัน 3D ตัวหนังสือโครเมียม หุบเขาน้ำวน เข็มทิศ 3D ที่มี token อยู่บนหน้าปัด เชือกทองมัด token แล้วสายฟ้าปลดปล่อย และฉากดาวกับน้ำขึ้นน้ำลงตอนจบ)
+  (อนิเมชัน 3D โทนน้ำเงินกรมท่า-ทอง token ปรากฏตอนยืนกลางแอ่งน้ำวนกับตอนถูกเชือกทองมัด แล้วจอร้าวและแตกเป็นเศษกระจก)
   (อนิเมชันโทนน้ำเงิน-ขาว token 1 ตัว ชื่อ token ขึ้นตอนเปิด แล้วไปตามฉากใต้น้ำ ฝน ชายหาด สมอ ฟิล์ม และท้องฟ้า)
 
 To play All Out Attack, select 2–5 tokens: **the first is the lead and the last is the target**. Then press

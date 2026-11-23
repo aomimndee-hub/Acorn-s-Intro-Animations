@@ -50,8 +50,8 @@ function chromeMaterial() {
       varying vec3 vN;
       varying float vY;
       vec3 band(float y) {
-        vec3 c0 = vec3(0.86, 0.86, 1.0);
-        vec3 c1 = vec3(0.25, 0.24, 0.78);
+        vec3 c0 = vec3(0.80, 0.87, 1.0);
+        vec3 c1 = vec3(0.10, 0.24, 0.80);
         vec3 c2 = vec3(1.0, 1.0, 1.0);
         vec3 c3 = vec3(0.98, 0.98, 0.78);
         vec3 c4 = vec3(0.92, 0.90, 0.32);
@@ -67,7 +67,7 @@ function chromeMaterial() {
         float side = 1.0 - abs(N.z);
         // bevels and sides catch a hard white highlight, the underside goes indigo
         c = mix(c, vec3(1.0), smoothstep(0.35, 0.8, side) * step(0.0, N.y + 0.2));
-        c = mix(c, vec3(0.2, 0.18, 0.6), smoothstep(0.4, 0.9, side) * step(N.y, -0.2));
+        c = mix(c, vec3(0.08, 0.16, 0.5), smoothstep(0.4, 0.9, side) * step(N.y, -0.2));
         c *= 1.0 + glow;
         gl_FragColor = vec4(pow(c, vec3(2.2)), opacity);
       }`,
@@ -149,12 +149,12 @@ const VORTEX_FRAG = /* glsl */ `
     float rings = pow(0.5 + 0.5 * sin(r * 38.0 - time * 3.2), 14.0) * smoothstep(0.1, 0.4, r);
     vec2 cell = floor(vec2(a * 40.0, r * 70.0 - time * 3.0));
     float glit = step(0.93, hash(cell)) * pow(0.5 + 0.5 * sin(time * 9.0 + hash(cell + 3.1) * 40.0), 4.0);
-    vec3 deep = vec3(0.18, 0.06, 0.48);
-    vec3 violet = vec3(0.55, 0.28, 1.0);
-    vec3 pink = vec3(0.95, 0.55, 1.0);
-    vec3 gold = vec3(1.0, 0.62, 0.24);
-    vec3 c = deep * 0.6 + violet * arms * 0.9 + pink * fine * 0.35 + pink * rings * 0.7;
-    c += vec3(1.0, 0.85, 1.0) * glit * 1.6;
+    vec3 deep = vec3(0.03, 0.07, 0.26);
+    vec3 violet = vec3(0.12, 0.30, 0.90);
+    vec3 pink = vec3(0.50, 0.68, 1.0);
+    vec3 gold = vec3(1.0, 0.70, 0.28);
+    vec3 c = deep * 0.7 + violet * arms * 0.75 + pink * fine * 0.25 + mix(pink, gold, 0.5) * rings * 0.55;
+    c += vec3(1.0, 0.82, 0.45) * glit * 1.6;
     float hot = exp(-r * r * 26.0);
     c += gold * hot * (2.2 + core * 3.0) + gold * exp(-r * r * 6.0) * 0.55 * arms;
     float edge = smoothstep(1.0, 0.62, r);
@@ -172,14 +172,14 @@ const SKY_FRAG = /* glsl */ `
   void main() {
     vec3 d = normalize(vDir);
     float up = clamp(d.y, -0.2, 1.0);
-    vec3 low = vec3(0.16, 0.22, 0.95);
-    vec3 high = vec3(0.02, 0.03, 0.35);
+    vec3 low = vec3(0.07, 0.15, 0.58);
+    vec3 high = vec3(0.01, 0.02, 0.13);
     vec3 c = mix(low, high, smoothstep(0.0, 0.7, up));
     // light rays bursting up from behind the rocks
     float ang = atan(d.x, d.y + 0.25);
     float rays = pow(noise(ang * 18.0 + time * 0.3) * 0.6 + noise(ang * 41.0 - time * 0.5) * 0.4, 2.5);
-    c += vec3(0.45, 0.55, 1.0) * rays * smoothstep(0.75, 0.0, up) * 0.9;
-    c = mix(c, vec3(0.86, 0.88, 1.0), pale);
+    c += vec3(0.35, 0.5, 1.0) * rays * smoothstep(0.75, 0.0, up) * 0.5;
+    c = mix(c, vec3(0.55, 0.65, 0.95), pale);
     c = mix(c, vec3(1.0), white);
     gl_FragColor = vec4(pow(c, vec3(2.2)), 1.0);
   }
@@ -228,13 +228,13 @@ function buildValley(env) {
   // dark basin floor the pool and rocks stand on
   const ground = new THREE.Mesh(
     new THREE.CircleGeometry(40, 64),
-    new THREE.MeshBasicMaterial({ color: new THREE.Color("#0d0826") }),
+    new THREE.MeshBasicMaterial({ color: new THREE.Color("#050a20") }),
   );
   ground.rotation.x = -Math.PI / 2;
   scene.add(ground);
   scene.add(vortex);
 
-  const rockMat = new THREE.MeshStandardMaterial({ color: "#2a1d48", roughness: 0.85, metalness: 0.1, flatShading: true, envMap: env, envMapIntensity: 0.25 });
+  const rockMat = new THREE.MeshStandardMaterial({ color: "#1a2350", roughness: 0.85, metalness: 0.1, flatShading: true, envMap: env, envMapIntensity: 0.25 });
   const rocks = new THREE.Group();
   for (let i = 0; i < 22; i++) {
     const a = (i / 22) * TAU + Math.sin(i * 7.3) * 0.12;
@@ -249,8 +249,8 @@ function buildValley(env) {
   }
   scene.add(rocks);
 
-  scene.add(new THREE.HemisphereLight("#7d8cff", "#3a1060", 1.4));
-  const glowLight = new THREE.PointLight("#c07bff", 30, 14, 1.6);
+  scene.add(new THREE.HemisphereLight("#5b78e8", "#081030", 1.0));
+  const glowLight = new THREE.PointLight("#ffbf6a", 22, 14, 1.6);
   glowLight.position.set(0, 0.6, 0);
   scene.add(glowLight);
   const rim = new THREE.DirectionalLight("#9fb4ff", 1.6);
@@ -269,7 +269,7 @@ function buildValley(env) {
   const my = word("MY", 0.42);
   const compass = word("COMPASS", 0.55);
   const is = word("is", 0.4);
-  const cur = letters("CURIOSITY", 0.72, 0.06);
+  const cur = letters("CURIOSITY", 0.6, 0.06);
   for (const m of [tight, my, compass, is]) scene.add(m);
   scene.add(cur.group);
 
@@ -436,7 +436,7 @@ export function createGL() {
 
   // title cards (HOLD / ON)
   const title = new THREE.Scene();
-  title.background = new THREE.Color("#141045");
+  title.background = new THREE.Color("#0a1238");
   const hold = word("HOLD", 1.25);
   const on = word("ON", 1.5);
   title.add(hold, on);
@@ -462,7 +462,7 @@ export function createGL() {
         float rings = pow(0.5 + 0.5 * sin(z * 2.2), 18.0);
         vec2 cell = floor(vec2(vUv.x * 120.0, z * 4.0));
         float glit = step(0.94, hash(cell));
-        vec3 c = vec3(0.22, 0.08, 0.55) * 0.7 + vec3(0.6, 0.3, 1.0) * sw * 0.8 + vec3(0.9, 0.6, 1.0) * rings * 0.6 + vec3(1.0, 0.85, 1.0) * glit * 0.9;
+        vec3 c = vec3(0.04, 0.09, 0.32) * 0.8 + vec3(0.15, 0.35, 0.95) * sw * 0.7 + vec3(0.95, 0.75, 0.4) * rings * 0.5 + vec3(1.0, 0.85, 0.5) * glit * 0.9;
         float depth = smoothstep(0.0, 1.0, 1.0 - vUv.y);
         c = mix(c, vec3(1.0, 0.6, 0.25) * 1.3, pow(depth, 5.0));
         gl_FragColor = vec4(pow(c, vec3(2.2)), 1.0);
@@ -473,7 +473,7 @@ export function createGL() {
   tube.position.z = -30;
   tunnel.add(tube);
   tunnel.environment = env;
-  tunnel.add(new THREE.HemisphereLight("#bfa8ff", "#3a1060", 1.5));
+  tunnel.add(new THREE.HemisphereLight("#9db4ff", "#0a1440", 1.3));
   const tunnelLight = new THREE.PointLight("#ffb070", 40, 30, 1.4);
   tunnelLight.position.set(0, 0, -6);
   tunnel.add(tunnelLight);
@@ -508,7 +508,7 @@ export function createGL() {
 
   // close-up compass with PIERCING THROUGH THE ROPE
   const close = new THREE.Scene();
-  close.background = new THREE.Color("#1a2cc4");
+  close.background = new THREE.Color("#0f1d6e");
   close.environment = env;
   close.add(new THREE.HemisphereLight("#c8d0ff", "#101860", 1.8));
   const keyLight = new THREE.DirectionalLight("#ffffff", 2.4);
@@ -562,7 +562,7 @@ export function createGL() {
 
   function draw(scene, strength = 0.85) {
     renderPass.scene = scene;
-    bloom.strength = strength * 0.42;
+    bloom.strength = strength * 0.36;
     composer.render();
   }
 
@@ -577,7 +577,7 @@ export function createGL() {
       const isOn = onT >= 0;
       // bg: navy for HOLD, a lilac flash that falls back to navy for ON
       const flash = isOn ? Math.exp(-onT / 0.12) : 0;
-      title.background.setRGB(lerp(0.075, 0.42, flash), lerp(0.06, 0.39, flash), lerp(0.27, 0.85, flash), THREE.SRGBColorSpace);
+      title.background.setRGB(lerp(0.04, 0.17, flash), lerp(0.07, 0.29, flash), lerp(0.22, 0.85, flash), THREE.SRGBColorSpace);
       const holdA = smooth(t, T.hold, T.hold + 0.08) * (1 - smooth(t, T.holdOut - 0.2, T.holdOut));
       fadeWord(hold, isOn ? 0 : holdA, 0.1);
       hold.rotation.y = -0.12 + (t - T.hold) * 0.18;
@@ -597,7 +597,7 @@ export function createGL() {
       V.skyMat.uniforms.time.value = t;
       // white fog clears, then the burst turns the sky blue; pale flicker after 8.5 s
       V.skyMat.uniforms.white.value = 1 - smooth(t, T.valley + 0.2, T.burst);
-      V.skyMat.uniforms.pale.value = smooth(t, T.pale, T.pale + 0.1) * (1 - smooth(t, T.paleOut - 0.2, T.paleOut)) * (0.45 + 0.15 * beat);
+      V.skyMat.uniforms.pale.value = smooth(t, T.pale, T.pale + 0.1) * (1 - smooth(t, T.paleOut - 0.2, T.paleOut)) * (0.3 + 0.1 * beat);
       V.vortexMat.uniforms.time.value = t;
       V.vortexMat.uniforms.core.value = beat * 0.6 + smooth(t, T.push, T.dive);
       V.scene.background = null;
@@ -624,10 +624,10 @@ export function createGL() {
         m.position.set(x, y + (1 - p) * 1.4, z);
         m.rotation.set(-0.1, ry, 0);
       };
-      drop(V.my, T.my, -2.25, 3.05, 2.2, 0.25);
-      drop(V.compass, T.compassWord, 0.7, 2.7, 2.6, -0.12);
+      drop(V.my, T.my, -2.25, 2.7, 2.2, 0.25);
+      drop(V.compass, T.compassWord, 0.7, 2.4, 2.6, -0.12);
       drop(V.is, T.is, -1.9, 2.05, 2.7, 0.2);
-      V.cur.group.position.set(0, 1.25, 3.6);
+      V.cur.group.position.set(0, 0.35, 4.6);
       V.cur.group.rotation.y = -0.05;
       V.cur.items.forEach((m, i) => {
         const t0 = T.cur[i];
@@ -637,7 +637,7 @@ export function createGL() {
         m.rotation.x = (1 - p) * -0.9;
       });
       draw(V.scene, 0.95);
-      return project(0, 1.75 + Math.sin(t * 1.3) * 0.06, -0.4, W, H);
+      return project(0, 0.02, 0, W, H);
     },
 
     tunnel(W, H, dpr, t, T) {
@@ -748,9 +748,9 @@ export function createGL() {
       setSize(W, H, dpr);
       const lt = t - T.free;
       const k = smooth(t, T.free + 1.6, T.tide);
-      const col = new THREE.Color("#f4f2ff").lerp(new THREE.Color("#7f76ea"), smooth(t, 26.2, 27.8));
-      col.lerp(new THREE.Color("#3a2f9e"), smooth(t, 27.8, 28.7));
-      col.lerp(new THREE.Color("#0d0b2c"), smooth(t, 28.6, T.tide));
+      const col = new THREE.Color("#f2f5ff").lerp(new THREE.Color("#5b78d8"), smooth(t, 26.2, 27.8));
+      col.lerp(new THREE.Color("#1a2c80"), smooth(t, 27.8, 28.7));
+      col.lerp(new THREE.Color("#060c26"), smooth(t, 28.6, T.tide));
       free.background = col;
       camera.up.set(0, 1, 0);
       camera.position.set(Math.sin(lt * 0.3) * 0.3, 0.1, 7 - lt * 0.25);

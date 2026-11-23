@@ -1,5 +1,5 @@
 // Compass: the 2D half of the cutscene and the master timeline. 3D shots come
-// from gl.js; this file lays the token, light, rope, lightning, tide and type
+// from gl.js; this file lays the token, light, rope, cracks, tide and type
 // over them. Every frame is a pure function of the song's current time.
 import { TAU, clamp, easeInCubic, easeOutCubic, easeOutExpo, hash, lerp, makeCanvas, prog, rng, smooth } from "../cutscene/util.js";
 
@@ -131,9 +131,11 @@ function smearSprite(seed) {
     const w = 3 + r() * 10;
     const g = x.createLinearGradient(0, py - h / 2, 0, py + h / 2);
     const a = 0.12 + r() * 0.3;
-    g.addColorStop(0, "rgba(110,90,255,0)");
-    g.addColorStop(0.5, `rgba(${r() > 0.75 ? "235,230,255" : "120,100,255"},${a})`);
-    g.addColorStop(1, "rgba(110,90,255,0)");
+    const tone = r();
+    const col = tone > 0.9 ? "255,205,110" : tone > 0.7 ? "220,232,255" : "70,115,255";
+    g.addColorStop(0, `rgba(${col},0)`);
+    g.addColorStop(0.5, `rgba(${col},${a})`);
+    g.addColorStop(1, `rgba(${col},0)`);
     x.fillStyle = g;
     x.beginPath();
     x.ellipse(px, py, w, h / 2, 0, 0, TAU);
@@ -183,9 +185,9 @@ export function buildSprites2D() {
   return {
     glowW: glowSprite(255, 255, 255),
     glowB: glowSprite(150, 160, 255),
-    glowV: glowSprite(170, 120, 255),
+    glowV: glowSprite(110, 150, 255),
     glowG: glowSprite(255, 200, 90),
-    star: star4Sprite("#eef0ff", "rgba(170,160,255,A)"),
+    star: star4Sprite("#f2f5ff", "rgba(140,170,255,A)"),
     starGold: star4Sprite("#fff4d0", "rgba(255,190,90,A)"),
     smears: [smearSprite(3), smearSprite(7), smearSprite(11), smearSprite(19)],
     smokeB: [smokeSprite(5, "120,140,255"), smokeSprite(8, "160,170,255")],
@@ -235,30 +237,6 @@ function heroToken(ctx, st, x, y, h, { alpha = 1, white = 0, halo = 1, rot = 0 }
     tok(ctx, K.white, x, y, h, rot, clamp(white) * alpha);
     ctx.restore();
   }
-}
-
-/** The token laid onto a projected plane (a compass dial), clipped to a circle. */
-function tokenOnDial(ctx, st, f, alpha) {
-  if (!st.tokS || alpha <= 0.01 || f.depth > 1) return;
-  ctx.save();
-  ctx.setTransform(ctx.getTransform().multiply(new DOMMatrix([f.ax, f.ay, -f.bx, -f.by, f.cx, f.cy])));
-  ctx.beginPath();
-  ctx.arc(0, 0, 0.98, 0, TAU);
-  ctx.clip();
-  ctx.globalAlpha = alpha * 0.55;
-  ctx.fillStyle = "#0c0a24";
-  ctx.fillRect(-1, -1, 2, 2);
-  ctx.globalAlpha = alpha;
-  ctx.drawImage(st.tokS.base, -0.95, -0.95, 1.9, 1.9);
-  // glass sheen across the face
-  const g = ctx.createLinearGradient(-1, -1, 1, 1);
-  g.addColorStop(0, "rgba(255,255,255,0.35)");
-  g.addColorStop(0.35, "rgba(255,255,255,0)");
-  g.addColorStop(0.7, "rgba(160,170,255,0)");
-  g.addColorStop(1, "rgba(160,170,255,0.25)");
-  ctx.fillStyle = g;
-  ctx.fillRect(-1, -1, 2, 2);
-  ctx.restore();
 }
 
 /** Chrome lettering in 2D: banded gradient, indigo edge, white bloom. */
@@ -320,7 +298,7 @@ function overlayTitle(ctx, st, t) {
       const y = H * hash(i * 11);
       const tw = 0.5 + 0.5 * Math.sin(t * (6 + hash(i) * 6) + i);
       const s = H * (0.03 + hash(i * 13) * 0.05) * (0.6 + tw * 0.5) * smooth(t, T.on + 0.05 + hash(i * 3) * 0.15, T.on + 0.25);
-      sprite(ctx, S.star, x, y, s * 1.8, s * 1.8, 0.85);
+      sprite(ctx, i % 3 ? S.starGold : S.star, x, y, s * 1.8, s * 1.8, 0.85);
     }
     // vertical light beams sweeping through
     const bp = prog(t, T.beams, T.white);
@@ -354,29 +332,40 @@ function overlayValley(ctx, st, t, p) {
   if (burst > 0.01) {
     sprite(ctx, S.glowB, W / 2, H * 0.4, W * 1.6, H * 1.4, burst * 0.9);
   }
-  // the token rises from the vortex on a pillar of light
-  const rise = easeOutCubic(prog(t, T.rise, T.rise + 1.6));
+  // the token appears standing at the centre of the pool, reflected in it
+  const rise = easeOutCubic(prog(t, T.rise, T.rise + 1.2));
   if (rise > 0 && p) {
-    const [x, y] = p;
-    const h = H * 0.24 * (0.5 + 0.5 * rise);
-    const yy = y - h * 0.4 + (1 - rise) * H * 0.12;
-    const pillar = ctx.createLinearGradient(0, yy - H * 0.4, 0, y + H * 0.15);
-    pillar.addColorStop(0, "rgba(200,170,255,0)");
-    pillar.addColorStop(0.7, `rgba(230,210,255,${0.35 * rise})`);
-    pillar.addColorStop(1, "rgba(255,200,120,0)");
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    ctx.fillStyle = pillar;
-    ctx.fillRect(x - h * 0.35, yy - H * 0.4, h * 0.7, H * 0.55 + h);
-    ctx.restore();
-    const dive = smooth(t, T.push, T.dive);
-    heroToken(ctx, st, x, yy, h * (1 + dive * 0.6), { alpha: rise * (1 - smooth(t, T.push, T.push + 0.5)), white: (1 - rise) * 1.2 + beatPulse(t) * 0.25, rot: Math.sin(t * 0.8) * 0.05 });
-    // motes spiralling up around the token
-    for (let i = 0; i < 26; i++) {
-      const a = (i / 26) * TAU + t * (0.8 + hash(i) * 0.6);
-      const r = h * (0.4 + hash(i * 3) * 0.5);
-      const up = ((t * 0.25 + hash(i * 7)) % 1);
-      sprite(ctx, S.glowV, x + Math.cos(a) * r, yy + h * 0.5 - up * h * 1.6, 10 * U, 10 * U, rise * (1 - up) * (1 - dive));
+    const [x, feet] = p;
+    const h = H * 0.22;
+    const leave = smooth(t, T.push, T.push + 0.45);
+    const a = rise * (1 - leave);
+    // pool of gold light under the feet
+    sprite(ctx, S.glowG, x, feet, h * 2.2, h * 0.5, 0.75 * a);
+    // reflection: flipped, squashed, broken by ripples
+    if (st.tokS && a > 0.01) {
+      ctx.save();
+      ctx.globalAlpha = 0.32 * a;
+      ctx.translate(x, feet);
+      ctx.scale(1, -0.55);
+      for (let k = 0; k < 6; k++) {
+        const y0 = (k / 6) * h;
+        const sh = Math.sin(t * 4 + k * 1.3) * h * 0.03;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(-h, y0, h * 2, h / 6 + 1);
+        ctx.clip();
+        ctx.drawImage(st.tokS.base, -h / 2 + sh, 0, h, h);
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+    heroToken(ctx, st, x, feet - h * 0.48, h, { alpha: a, white: (1 - rise) * 1.3 + beatPulse(t) * 0.15, halo: 0.8 });
+    // gold motes drifting up around the token
+    for (let i = 0; i < 18; i++) {
+      const ang = (i / 18) * TAU + t * (0.5 + hash(i) * 0.4);
+      const r = h * (0.35 + hash(i * 3) * 0.45);
+      const up = ((t * 0.2 + hash(i * 7)) % 1);
+      sprite(ctx, S.glowG, x + Math.cos(ang) * r, feet - up * h * 1.4, 7 * U, 7 * U, a * (1 - up) * 0.8);
     }
   }
   // the dive ends in a gold flash
@@ -390,13 +379,13 @@ function overlayTunnel(ctx, st, t, frame) {
   const { W, H, S } = st;
   const lt = t - T.dive;
   // the hot core at the far end of the tunnel
-  const core = 0.6 + 0.4 * beatPulse(t);
+  // the hot core far down the tunnel, hidden once the compass flies in front of it
+  const core = (0.6 + 0.4 * beatPulse(t)) * (1 - smooth(t, T.dive + 0.45, T.dive + 0.85));
   sprite(ctx, S.glowG, W / 2, H / 2, H * 0.5 * core, H * 0.5 * core, 0.55);
-  sprite(ctx, S.starGold, W / 2, H / 2, H * (0.3 + core * 0.12), H * (0.3 + core * 0.12), 0.85, t * 0.3);
+  sprite(ctx, S.starGold, W / 2, H / 2, H * (0.3 + core * 0.12), H * (0.3 + core * 0.12), 0.85 * core, t * 0.3);
   // orange flash fading out from the dive
   const f = Math.exp(-lt / 0.25);
   if (f > 0.01) sprite(ctx, S.glowG, W / 2, H / 2, W * 2, W * 2, f);
-  tokenOnDial(ctx, st, frame, smooth(t, T.dive + 0.6, T.dive + 1.0));
   // fade to the dark void
   const out = smooth(t, T.dark - 0.12, T.dark);
   if (out > 0) fill(ctx, W, H, `rgba(6,10,52,${out})`);
@@ -457,9 +446,6 @@ function overlayBeam(ctx, st, t, p) {
   const pulse = 1 + 0.2 * beatPulse(t);
   sprite(ctx, S.glowW, sx, sy, H * 0.35 * pulse, H * 0.35 * pulse, 0.9);
   sprite(ctx, S.star, sx, sy, H * 0.3 * pulse, H * 0.3 * pulse, 1, bt * 0.15);
-  // the token descends in the light
-  const d = smooth(t, 14.6, 15.6);
-  if (d > 0) heroToken(ctx, st, sx, lerp(sy + H * 0.06, sy + H * 0.2, d), H * 0.16, { alpha: d, white: (1 - d) * 1.5 + 0.25 * beatPulse(t), halo: 1.2 });
   const flash = smooth(t, T.piercing - 0.1, T.piercing);
   if (flash > 0) fill(ctx, W, H, `rgba(255,255,255,${flash})`);
 }
@@ -470,7 +456,6 @@ function overlayClose(ctx, st, t, res) {
   const lt = t - T.piercing;
   // flash in from the beam shot
   const f = Math.exp(-lt / 0.18);
-  tokenOnDial(ctx, st, dial, smooth(lt, 0.15, 0.5));
   // lens flare riding the compass rim
   const [gx, gy] = glint;
   const pulse = 1 + 0.25 * beatPulse(t);
@@ -495,7 +480,7 @@ function overlayClose(ctx, st, t, res) {
   if (f > 0.01) fill(ctx, W, H, `rgba(255,255,255,${f})`);
   // lilac flash with a twisting white cord before the rope shot
   const out = smooth(t, T.flash - 0.08, T.flash);
-  if (out > 0) fill(ctx, W, H, `rgba(110,100,240,${out})`);
+  if (out > 0) fill(ctx, W, H, `rgba(40,70,190,${out})`);
   // a white cord twists up out of the flash
   if (t >= T.flash) {
     const k = easeOutExpo(prog(t, T.flash, T.that));
@@ -591,80 +576,250 @@ function ropeLoops(t, W, H, cx, cy, Rb) {
   return pts;
 }
 
-function bolt(ctx, x0, y0, x1, y1, depth, seed, width) {
-  const r = rng(seed);
-  const pts = [[x0, y0], [x1, y1]];
-  for (let d = 0; d < depth; d++) {
-    for (let i = pts.length - 1; i > 0; i--) {
-      const [ax, ay] = pts[i - 1];
-      const [bx, by] = pts[i];
-      const len = Math.hypot(bx - ax, by - ay);
-      const nx = -(by - ay) / len;
-      const ny = (bx - ax) / len;
-      const off = (r() - 0.5) * len * 0.45;
-      pts.splice(i, 0, [(ax + bx) / 2 + nx * off, (ay + by) / 2 + ny * off]);
+// ---- cracks and shatter -----------------------------------------------------------------
+
+// Each beat of "let us…" drives the cracks further; on "BE" the picture breaks.
+const IMPACTS = [23.42, 23.76, 24.1];
+const RAYS = 13;
+const STEPS = 16;
+const RINGS = [0, 2, 4, 7, 10, 13, 16];
+
+/** Crack network around the centre: jagged radial rays plus ring cracks between them. */
+function crackNet(st) {
+  const key = `${st.W}x${st.H}`;
+  if (st._crackKey === key) return st._crack;
+  const { W, H } = st;
+  const cx = W / 2;
+  const cy = H / 2;
+  const R = Math.hypot(W, H) * 0.62;
+  const rays = [];
+  for (let i = 0; i < RAYS; i++) {
+    const a0 = (i / RAYS) * TAU + (hash(i * 17) - 0.5) * 0.3;
+    const pts = [];
+    for (let k = 0; k <= STEPS; k++) {
+      const r = R * Math.pow(k / STEPS, 1.25);
+      const a = a0 + (hash(i * 31 + k * 7) - 0.5) * 0.16 * (k > 0 ? 1 : 0);
+      pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
     }
+    rays.push({ pts, reach: 0.75 + hash(i * 3) * 0.25 });
   }
-  ctx.beginPath();
-  ctx.moveTo(pts[0][0], pts[0][1]);
-  for (const [x, y] of pts) ctx.lineTo(x, y);
-  ctx.lineWidth = width;
-  ctx.stroke();
-  return pts;
+  st._crack = { cx, cy, rays };
+  st._crackKey = key;
+  return st._crack;
 }
 
-function lightning(ctx, cx, cy, R, t, intensity, U) {
-  const frame = Math.floor(t * 18);
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  for (let i = 0; i < 9; i++) {
-    const a = (i / 9) * TAU + hash(i * 13 + frame) * 0.6;
-    const len = R * (0.6 + hash(i * 7 + frame) * 0.5);
-    const ex = cx + Math.cos(a) * len;
-    const ey = cy + Math.sin(a) * len;
-    for (const [w, col] of [[10, "rgba(90,90,255,0.18)"], [4, "rgba(150,160,255,0.55)"], [1.5, "rgba(240,240,255,1)"]]) {
-      ctx.strokeStyle = col;
-      ctx.globalAlpha = intensity;
-      const pts = bolt(ctx, cx, cy, ex, ey, 5, i * 101 + frame * 7, w * U);
-      // a branch off the middle
-      const m = pts[Math.floor(pts.length * (0.35 + hash(i + frame) * 0.3))];
-      const ba = a + (hash(i * 3 + frame) - 0.5) * 1.6;
-      bolt(ctx, m[0], m[1], m[0] + Math.cos(ba) * len * 0.45, m[1] + Math.sin(ba) * len * 0.45, 4, i * 57 + frame * 3, w * 0.7 * U);
-    }
-  }
-  // a ring of electric cells around the core
-  ctx.strokeStyle = "rgba(200,205,255,0.8)";
-  ctx.lineWidth = 1.5 * U;
-  for (let i = 0; i < 7; i++) {
-    const a = (i / 7) * TAU + frame * 0.3;
+/** How far the cracks have spread, 0..1, stepping up on each impact. */
+function crackExtent(t) {
+  const steps = [0.3, 0.3, 0.4];
+  return clamp(IMPACTS.reduce((e, t0, i) => e + steps[i] * easeOutExpo(prog(t, t0, t0 + 0.12)), 0));
+}
+
+function drawCracks(ctx, st, t) {
+  const { U } = st;
+  const net = crackNet(st);
+  const e = crackExtent(t);
+  if (e <= 0) return;
+  const stroke = (paths, w, color, mode = "source-over", dx = 0, dy = 0) => {
+    ctx.save();
+    ctx.globalCompositeOperation = mode;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = w;
+    ctx.lineJoin = "miter";
+    ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.arc(cx + Math.cos(a) * R * 0.18, cy + Math.sin(a) * R * 0.18, R * 0.08, 0, TAU);
+    for (const p of paths) {
+      ctx.moveTo(p[0][0] + dx, p[0][1] + dy);
+      for (let k = 1; k < p.length; k++) ctx.lineTo(p[k][0] + dx, p[k][1] + dy);
+    }
     ctx.stroke();
+    ctx.restore();
+  };
+  const paths = [];
+  net.rays.forEach((ray, i) => {
+    const n = Math.floor(e * ray.reach * STEPS * 1.35);
+    if (n >= 1) paths.push(ray.pts.slice(0, Math.min(STEPS, n) + 1));
+    // ring cracks once both neighbouring rays reach that far
+    const next = net.rays[(i + 1) % RAYS];
+    const nn = Math.floor(e * next.reach * STEPS * 1.35);
+    for (const k of RINGS.slice(1, -1)) {
+      if (n >= k && nn >= k && hash(i * 13 + k) > 0.25) {
+        const a = ray.pts[k];
+        const b = next.pts[k];
+        const mid = [(a[0] + b[0]) / 2 + (hash(i + k * 3) - 0.5) * 14 * U, (a[1] + b[1]) / 2 + (hash(i * 5 + k) - 0.5) * 14 * U];
+        paths.push([a, mid, b]);
+      }
+    }
+  });
+  stroke(paths, 7 * U, "rgba(255,196,90,0.18)", "lighter");
+  stroke(paths, 2.6 * U, "rgba(2,4,22,0.9)");
+  stroke(paths, 1 * U, "rgba(225,236,255,0.95)", "source-over", 1.2 * U, -1.2 * U);
+  // the impact point glows on every hit
+  const hit = IMPACTS.reduce((v, t0) => v + (t >= t0 ? Math.exp(-(t - t0) / 0.1) : 0), 0);
+  if (hit > 0.01) {
+    sprite(ctx, st.S.glowW, net.cx, net.cy, st.H * 0.5 * hit, st.H * 0.5 * hit, hit);
+    sprite(ctx, st.S.starGold, net.cx, net.cy, st.H * 0.35 * hit, st.H * 0.35 * hit, hit);
   }
-  ctx.restore();
 }
 
-function shotRope(ctx, st, t) {
+/** Cells between neighbouring rays and rings: the pieces the frame breaks into. */
+function shardCells(st) {
+  const net = crackNet(st);
+  const cells = [];
+  net.rays.forEach((ray, i) => {
+    const next = net.rays[(i + 1) % RAYS];
+    for (let r = 0; r < RINGS.length - 1; r++) {
+      const k0 = RINGS[r];
+      const k1 = RINGS[r + 1];
+      const poly = [...ray.pts.slice(k0, k1 + 1), ...next.pts.slice(k0, k1 + 1).reverse()];
+      const c = poly.reduce((m, p) => [m[0] + p[0] / poly.length, m[1] + p[1] / poly.length], [0, 0]);
+      cells.push({ poly, c, ring: r, seed: i * 7 + r * 31 });
+    }
+  });
+  return cells;
+}
+
+function snapshot(st, ctx, draw) {
+  const scale = ctx.canvas.width / st.W;
+  const key = `${st.W}x${st.H}@${scale}`;
+  if (st._snapKey === key) return st._snap;
+  const c = makeCanvas(st.W * scale, st.H * scale);
+  const x = c.getContext("2d");
+  x.setTransform(scale, 0, 0, scale, 0, 0);
+  draw(x);
+  st._snap = c;
+  st._snapKey = key;
+  st._cells = shardCells(st);
+  return c;
+}
+
+function shatter(ctx, st, t, snap) {
   const { W, H, U, S } = st;
-  fill(ctx, W, H, "#030431");
+  const k = t - T.be;
+  const net = crackNet(st);
+  // light pours through the breaks
+  const g = ctx.createRadialGradient(net.cx, net.cy, 0, net.cx, net.cy, Math.hypot(W, H) * 0.6);
+  g.addColorStop(0, "#ffffff");
+  g.addColorStop(0.35, "#fff1cf");
+  g.addColorStop(0.75, "#9fb6ff");
+  g.addColorStop(1, "#3a56c8");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  const scale = snap.width / W;
+  for (const cell of st._cells) {
+    const dx = cell.c[0] - net.cx;
+    const dy = cell.c[1] - net.cy;
+    const d = Math.hypot(dx, dy) || 1;
+    const delay = cell.ring * 0.025;
+    const kk = Math.max(0, k - delay);
+    const speed = H * (0.9 + hash(cell.seed) * 0.9) * (1.2 - cell.ring * 0.08);
+    const ox = (dx / d) * speed * kk;
+    const oy = (dy / d) * speed * kk + 0.9 * H * kk * kk;
+    const rot = (hash(cell.seed * 3) - 0.5) * 5 * kk;
+    const grow = 1 + kk * (1.6 - cell.ring * 0.18);
+    const a = 1 - smooth(kk, 0.35, 0.6);
+    if (a <= 0.01) continue;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.translate(cell.c[0] + ox, cell.c[1] + oy);
+    ctx.rotate(rot);
+    ctx.scale(grow, grow);
+    ctx.translate(-cell.c[0], -cell.c[1]);
+    ctx.beginPath();
+    cell.poly.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.closePath();
+    ctx.save();
+    ctx.clip();
+    ctx.drawImage(snap, 0, 0, snap.width / scale, snap.height / scale);
+    // glassy sheen on each piece
+    const sh = ctx.createLinearGradient(cell.c[0] - 60, cell.c[1] - 60, cell.c[0] + 60, cell.c[1] + 60);
+    sh.addColorStop(0, `rgba(255,255,255,${0.25 * Math.min(1, kk * 6)})`);
+    sh.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = sh;
+    ctx.fillRect(cell.c[0] - W, cell.c[1] - H, W * 2, H * 2);
+    ctx.restore();
+    ctx.strokeStyle = "rgba(240,246,255,0.9)";
+    ctx.lineWidth = 1.2 * U / grow;
+    ctx.stroke();
+    ctx.restore();
+  }
+  // glitter thrown out with the glass
+  for (let i = 0; i < 40; i++) {
+    const a = hash(i * 11) * TAU;
+    const r = H * (0.1 + hash(i * 13) * 1.2) * easeOutCubic(clamp(k / 0.6));
+    sprite(ctx, S.starGold, net.cx + Math.cos(a) * r, net.cy + Math.sin(a) * r + 0.6 * H * k * k, H * 0.05, H * 0.05, 1 - smooth(k, 0.3, 0.65), k * 3 + i);
+  }
+}
+
+/** The bound stage: rope loops around the token, words, and cracks. */
+function ropeStage(ctx, st, t) {
+  const { W, H, U, S } = st;
+  const cx = W * 0.5;
+  const cy = H * 0.5;
+  const tight = smooth(t, 22.4, T.bolt + 0.6);
+  const Rb = H * lerp(0.36, 0.28, tight);
+  const bound = smooth(t, T.you, T.you + 0.5);
+  const tokH = H * 0.3;
+  if (bound > 0) {
+    ctx.save();
+    // the rope's grip pulses on every beat once the cracks begin
+    const strain = t >= T.bolt ? beatPulse(t, 0.06) : 0;
+    heroToken(ctx, st, cx + (hash(Math.floor(t * 40)) - 0.5) * strain * 6 * U, cy, tokH, { alpha: bound, white: strain * 0.4, halo: 0.5 });
+    ctx.globalCompositeOperation = "source-atop";
+    ctx.fillStyle = `rgba(8,16,70,${0.45 * tight})`;
+    ctx.fillRect(cx - tokH, cy - tokH, tokH * 2, tokH * 2);
+    ctx.restore();
+  }
+  const loops = ropeLoops(t, W, H, cx, cy, Rb);
+  strokeRope(ctx, loops, 3.8 * U, U);
+  ropeSparks(ctx, st, loops, t);
+  const wsize = H * 0.065;
+  const youP = easeOutExpo(prog(t, T.you, T.you + 0.4));
+  const wordsOut = 1 - smooth(t, T.let - 0.2, T.let);
+  chrome(ctx, "YOU", lerp(W * 0.3, cx - W * 0.02, youP), lerp(H * 0.62, cy - H * 0.22, youP), wsize, { alpha: smooth(t, T.you, T.you + 0.05) * wordsOut, rot: lerp(-1.2, -0.35, youP), scale: lerp(1.9, 1, youP) });
+  chrome(ctx, "AND", cx - W * 0.09, cy + H * 0.12, wsize * 0.9, { alpha: smooth(t, T.and, T.and + 0.05) * wordsOut, rot: 0.3 });
+  const meP = easeOutExpo(prog(t, T.me, T.me + 0.35));
+  chrome(ctx, "ME", lerp(W * 0.8, cx + W * 0.11, meP), lerp(H * 0.75, cy + H * 0.16, meP), wsize, { alpha: smooth(t, T.me, T.me + 0.05) * wordsOut, rot: -0.5, scale: lerp(2.4, 1, meP) });
+  chrome(ctx, "LET", cx - W * 0.1, cy - H * 0.2, wsize * 1.1, { alpha: smooth(t, T.let, T.let + 0.05), rot: -0.5 });
+  chrome(ctx, "US", cx + W * 0.08, cy - H * 0.24, wsize * 1.1, { alpha: smooth(t, T.us, T.us + 0.05), rot: 0.5 });
+  drawCracks(ctx, st, t);
+}
+
+/** Gold glints twinkling along the rope, like sparks off a lit fuse. */
+function ropeSparks(ctx, st, pts, t) {
+  const { H, S } = st;
+  for (let i = 0; i < pts.length; i += 9) {
+    const tw = Math.sin(t * 9 + i * 1.7);
+    if (tw < 0.55) continue;
+    const s = H * (0.025 + hash(i) * 0.03) * (tw - 0.4);
+    sprite(ctx, S.starGold, pts[i][0], pts[i][1], s * 2, s * 2, 0.9, i);
+  }
+}
+
+function ropeBackdrop(ctx, st, t) {
+  const { W, H, U, S } = st;
+  fill(ctx, W, H, "#030a2c");
   const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.1, W / 2, H / 2, Math.hypot(W, H) * 0.6);
-  vg.addColorStop(0, "rgba(30,30,110,0.6)");
+  vg.addColorStop(0, "rgba(20,45,140,0.55)");
   vg.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = vg;
   ctx.fillRect(0, 0, W, H);
-  // dust
   for (let i = 0; i < 30; i++) {
-    sprite(ctx, S.glowB, W * hash(i * 3), ((hash(i * 5) - t * 0.01) % 1 + 1) % 1 * H, 4 * U, 4 * U, 0.5);
+    sprite(ctx, i % 4 ? S.glowB : S.glowG, W * hash(i * 3), ((hash(i * 5) - t * 0.01) % 1 + 1) % 1 * H, 4 * U, 4 * U, 0.5);
   }
-  const zoom = t >= T.zoom && t < T.loops ? 1 + easeOutCubic(prog(t, T.zoom, T.zoom + 0.35)) * 0.7 : 1;
+}
+
+function shotRope(ctx, st, t) {
+  const { W, H, U } = st;
   if (t < T.loops) {
+    ropeBackdrop(ctx, st, t);
+    const zoom = t >= T.zoom ? 1 + easeOutCubic(prog(t, T.zoom, T.zoom + 0.35)) * 0.7 : 1;
     ctx.save();
     ctx.translate(W / 2, H / 2);
     ctx.scale(zoom, zoom);
     ctx.translate(-W / 2, -H / 2);
-    strokeRope(ctx, ropeLine(t, W, H), 4.5 * U * zoom, U);
+    const line = ropeLine(t, W, H);
+    strokeRope(ctx, line, 4.5 * U * zoom, U);
+    ropeSparks(ctx, st, line, t);
     const size = H * 0.085;
     const out = 1 - smooth(t, T.zoom + 0.25, T.loops);
     chrome(ctx, "THAT", W * 0.36, H * 0.34, size, { alpha: smooth(t, T.that, T.that + 0.05) * out });
@@ -673,59 +828,24 @@ function shotRope(ctx, st, t) {
     ctx.restore();
     return;
   }
-  // the rope winds round and round the token
-  const cx = W * 0.5;
-  const cy = H * 0.5;
-  const tight = smooth(t, 22.4, T.bolt);
-  const Rb = H * lerp(0.36, 0.3, tight);
-  const breaking = t >= T.be;
-  const bound = smooth(t, T.you, T.you + 0.5);
-  const free = breaking ? easeOutExpo(prog(t, T.be, T.be + 0.25)) : 0;
-  // token inside the loops: dim and blue while bound, burning white as it breaks free
-  const tokH = H * 0.3 * (1 + free * 0.15);
-  if (bound > 0) {
+  if (t < T.be) {
+    // shake on each impact
+    const hit = IMPACTS.reduce((v, t0) => v + (t >= t0 ? Math.exp(-(t - t0) / 0.08) : 0), 0);
     ctx.save();
-    ctx.globalAlpha = bound;
-    heroToken(ctx, st, cx, cy, tokH, { alpha: bound, white: free * 1.2 + (t >= T.bolt ? 0.3 * beatPulse(t, 0.06) : 0), halo: 0.4 + free });
-    if (!breaking) {
-      ctx.globalCompositeOperation = "source-atop";
-      ctx.fillStyle = `rgba(20,20,90,${0.45 * tight})`;
-      ctx.fillRect(cx - tokH, cy - tokH, tokH * 2, tokH * 2);
-    }
+    ctx.translate((hash(Math.floor(t * 60)) - 0.5) * hit * 14 * U, (hash(Math.floor(t * 60) + 5) - 0.5) * hit * 14 * U);
+    ropeBackdrop(ctx, st, t);
+    ropeStage(ctx, st, t);
     ctx.restore();
+    return;
   }
-  if (t >= T.bolt) lightning(ctx, cx, cy, H * (0.42 + free * 0.4), t, breaking ? 1 - smooth(t, T.be + 0.3, T.free) : 0.9, U);
-  if (!breaking) {
-    strokeRope(ctx, ropeLoops(t, W, H, cx, cy, Rb), 3.6 * U, U);
-  } else {
-    // the rope bursts into pieces that fly outward
-    const pts = ropeLoops(Math.min(t, T.be), W, H, cx, cy, Rb);
-    const k = easeOutCubic(prog(t, T.be, T.be + 0.6));
-    for (let s = 0; s < pts.length - 12; s += 12) {
-      const seg = pts.slice(s, s + 13);
-      const mx = seg[6][0] - cx;
-      const my = seg[6][1] - cy;
-      const push = k * H * 0.6;
-      const d = Math.hypot(mx, my) || 1;
-      strokeRope(ctx, seg.map(([x, y]) => [x + (mx / d) * push, y + (my / d) * push]), 3.6 * U, U, 1 - k);
-    }
-  }
-  // words caught in the loops
-  const wsize = H * 0.065;
-  const youP = easeOutExpo(prog(t, T.you, T.you + 0.4));
-  chrome(ctx, "YOU", lerp(W * 0.3, cx - W * 0.02, youP), lerp(H * 0.62, cy - H * 0.22, youP), wsize, { alpha: smooth(t, T.you, T.you + 0.05) * (1 - smooth(t, T.let - 0.2, T.let)), rot: lerp(-1.2, -0.35, youP), scale: lerp(1.9, 1, youP) });
-  chrome(ctx, "AND", cx - W * 0.09, cy + H * 0.12, wsize * 0.9, { alpha: smooth(t, T.and, T.and + 0.05) * (1 - smooth(t, T.let - 0.2, T.let)), rot: 0.3 });
-  const meP = easeOutExpo(prog(t, T.me, T.me + 0.35));
-  chrome(ctx, "ME", lerp(W * 0.8, cx + W * 0.11, meP), lerp(H * 0.75, cy + H * 0.16, meP), wsize, { alpha: smooth(t, T.me, T.me + 0.05) * (1 - smooth(t, T.let - 0.2, T.let)), rot: -0.5, scale: lerp(2.4, 1, meP) });
-  chrome(ctx, "LET", cx - W * 0.1, cy - H * 0.2, wsize * 1.1, { alpha: smooth(t, T.let, T.let + 0.05), rot: -0.5 });
-  chrome(ctx, "US", cx + W * 0.08, cy - H * 0.24, wsize * 1.1, { alpha: smooth(t, T.us, T.us + 0.05), rot: 0.5 });
-  chrome(ctx, "BE", cx, cy + H * 0.25, wsize * 1.3, { alpha: smooth(t, T.be, T.be + 0.05), scale: 1 + Math.exp(-(t - T.be) / 0.1) * 0.6 });
-  // strike flashes
-  if (t >= T.bolt) {
-    const strike = Math.exp(-(((t - T.bolt) % 0.34) / 0.05)) * 0.25 + (breaking ? Math.exp(-(t - T.be) / 0.12) : 0);
-    if (strike > 0.01) fill(ctx, W, H, `rgba(160,170,255,${clamp(strike)})`);
-  }
-  const white = smooth(t, T.free - 0.2, T.free);
+  // on "BE": freeze the frame with its cracks and break it apart
+  const snap = snapshot(st, ctx, (x) => {
+    ropeBackdrop(x, st, T.be);
+    ropeStage(x, st, T.be);
+  });
+  shatter(ctx, st, t, snap);
+  chrome(ctx, "BE", W / 2, H * 0.52, H * 0.12, { alpha: smooth(t, T.be + 0.05, T.be + 0.15), scale: 1 + Math.exp(-(t - T.be) / 0.12) * 0.5 });
+  const white = smooth(t, T.free - 0.18, T.free);
   if (white > 0) fill(ctx, W, H, `rgba(255,255,255,${white})`);
 }
 
@@ -751,23 +871,20 @@ function overlayFree(ctx, st, t, p) {
   // first beat lands on white
   const f = Math.exp(-lt / 0.2);
   smearField(ctx, st, t, 24, smooth(t, 26.4, 28.2) * 0.85);
-  // the token floats up above the word
-  const up = smooth(t, 25.2, 26.6);
-  heroToken(ctx, st, W * 0.5, lerp(H * 0.36, H * 0.22, up) + Math.sin(t * 1.2) * H * 0.008, H * 0.22, { alpha: up * (1 - smooth(t, 28.6, T.tide)), white: (1 - up) + 0.2 * beatPulse(t), halo: 1.2 });
   // star sparkle on the word
   const pulse = 1 + 0.25 * beatPulse(t);
   sprite(ctx, S.star, W * 0.49, H * 0.53, H * 0.32 * pulse, H * 0.32 * pulse, 0.9, Math.sin(t * 0.7) * 0.4);
   const ly = lyricAt(LYRICS_FREE, t);
-  if (ly) serifText(ctx, ly[1], W / 2, H * 0.7, H * 0.04, smooth(t, ly[0], ly[0] + 0.12), t < 27 ? "#7a74d8" : "#f4f2ff");
+  if (ly) serifText(ctx, ly[1], W / 2, H * 0.7, H * 0.04, smooth(t, ly[0], ly[0] + 0.12), t < 27 ? "#5d78d6" : "#f2f5ff");
   if (f > 0.01) fill(ctx, W, H, `rgba(255,255,255,${f})`);
 }
 
 function shotTide(ctx, st, t) {
   const { W, H, U, S } = st;
   const lt = t - T.tide;
-  fill(ctx, W, H, "#0c0a2a");
+  fill(ctx, W, H, "#040a22");
   const vg = ctx.createRadialGradient(W / 2, H * 0.45, 0, W / 2, H * 0.45, Math.hypot(W, H) * 0.55);
-  vg.addColorStop(0, "rgba(40,30,120,0.55)");
+  vg.addColorStop(0, "rgba(22,44,130,0.5)");
   vg.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = vg;
   ctx.fillRect(0, 0, W, H);
@@ -781,9 +898,9 @@ function shotTide(ctx, st, t) {
   const from = prevLy && prevLy[1].startsWith("high") ? 0.74 : 0.86;
   const level = H * lerp(from, target, easeOutCubic(prog(t, ly ? ly[0] : t, (ly ? ly[0] : t) + 1.0)));
   const water = ctx.createLinearGradient(0, level, 0, H);
-  water.addColorStop(0, "rgba(120,110,255,0.32)");
-  water.addColorStop(0.08, "rgba(40,30,140,0.55)");
-  water.addColorStop(1, "rgba(8,6,40,0.9)");
+  water.addColorStop(0, "rgba(90,130,255,0.3)");
+  water.addColorStop(0.08, "rgba(14,34,120,0.6)");
+  water.addColorStop(1, "rgba(2,6,26,0.92)");
   ctx.fillStyle = water;
   ctx.beginPath();
   ctx.moveTo(0, H);
@@ -792,7 +909,7 @@ function shotTide(ctx, st, t) {
   ctx.fill();
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.strokeStyle = "rgba(210,205,255,0.7)";
+  ctx.strokeStyle = "rgba(255,214,140,0.7)";
   ctx.lineWidth = 1.5 * U;
   ctx.beginPath();
   for (let x = 0; x <= W; x += 16) {
@@ -810,12 +927,14 @@ function shotTide(ctx, st, t) {
   const cy = H * 0.45;
   const sr = H * (0.4 + grow * 1.8) * pulse;
   const srot = Math.sin(lt * 0.35) * 0.35 + grow * 1.2;
-  sprite(ctx, S.glowV, cx, cy, sr * 1.6, sr * 1.6, 0.55);
-  sprite(ctx, S.star, cx, cy, sr, sr, 0.95, srot);
-  // a shimmer on the water under the star
-  sprite(ctx, S.glowB, cx, level + 2 * U, W * 0.5, 14 * U, 0.6);
-  const tokA = smooth(t, T.tide + 0.2, T.tide + 1.2);
-  heroToken(ctx, st, cx, cy + Math.sin(t * 0.9) * H * 0.01, H * 0.26, { alpha: tokA, white: grow * 1.5 + beatPulse(t) * 0.18, halo: 1 });
+  sprite(ctx, S.glowG, cx, cy, sr * 1.3, sr * 1.3, 0.45);
+  sprite(ctx, S.starGold, cx, cy, sr, sr, 0.95, srot);
+  // gold light broken up on the water under the star
+  for (let k = 0; k < 9; k++) {
+    const wx = cx + (hash(k * 5) - 0.5) * W * 0.35;
+    const ww = W * (0.03 + hash(k * 7) * 0.08) * (0.7 + 0.3 * Math.sin(t * 2 + k));
+    sprite(ctx, S.glowG, wx, level + (4 + k * 5) * U, ww, 4 * U, 0.55);
+  }
 
   if (ly) serifText(ctx, ly[1], W / 2, H * 0.68, H * 0.045, smooth(t, ly[0], ly[0] + 0.12) * (1 - grow));
   // the token's name surfaces near the end
