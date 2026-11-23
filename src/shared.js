@@ -11,21 +11,28 @@ const DEFAULTS = {
   animation: "crystal",
   caption: "CURTAIN CALL",
   accent: "#e60012",
+  title: "ANCHOR",
 };
 
 /** Animations the GM can choose from. Add new ones here. */
 export const ANIMATIONS = [
   {
     id: "crystal",
-    label: "Crystal Intro",
+    label: "Break Through",
     description: "Cinematic reveal of one token, synced to music (about 30 s).",
     page: "intro.html",
   },
   {
     id: "assault",
-    label: "Team Assault",
+    label: "All Out Attack",
     description: "Up to 4 tokens appear in glass, rush 1 target in black silhouette, and the lead lands (about 16 s).",
     page: "finisher.html",
+  },
+  {
+    id: "anchor",
+    label: "Anchor",
+    description: "Blue and white lyric cutscene: one token falls through sea, rain, film and sky (about 46 s).",
+    page: "anchor.html",
   },
 ];
 
@@ -77,7 +84,7 @@ const tokenInfo = (item) => ({
   name: tokenName(item),
 });
 
-/** Payload for Team Assault: 1-4 team tokens, one of them the lead, and 1 target. */
+/** Payload for All Out Attack: 1-4 team tokens, one of them the lead, and 1 target. */
 export function assaultPayload(team, leadIndex, target, overrides = {}) {
   const settings = loadSettings();
   return {
@@ -87,6 +94,22 @@ export function assaultPayload(team, leadIndex, target, overrides = {}) {
     target: tokenInfo(target),
     caption: overrides.caption ?? settings.caption,
     accent: overrides.accent ?? settings.accent,
+    nonce: Math.random().toString(36).slice(2),
+  };
+}
+
+/** Payload for Anchor: one token, its name, and the title card text. */
+export function anchorPayload(item, overrides = {}) {
+  const settings = loadSettings();
+  return {
+    animation: "anchor",
+    itemId: item.id,
+    imageUrl: item.image?.url || "",
+    mime: item.image?.mime || "",
+    name: overrides.name ?? tokenName(item),
+    title: overrides.title ?? settings.title,
+    reveal: overrides.reveal ?? settings.reveal,
+    revealBy: overrides.revealBy || "",
     nonce: Math.random().toString(36).slice(2),
   };
 }

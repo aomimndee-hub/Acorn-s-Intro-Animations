@@ -1,4 +1,4 @@
-// Team Assault: up to four tokens appear in glass, rush one target in black
+// All Out Attack: up to four tokens appear in glass, rush one target in black
 // silhouette, and the lead lands for the final pose. Every frame is a pure
 // function of the music's current time.
 import { crystal, shockwave, star as gemStar } from "../cutscene/draw.js";

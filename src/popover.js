@@ -1,6 +1,6 @@
 import OBR, { isImage } from "@owlbear-rodeo/sdk";
 import {
-  ANIMATIONS, CHANNEL, animationById, assaultPayload, loadSettings, payloadFor, saveSettings, tokenName,
+  ANIMATIONS, CHANNEL, anchorPayload, animationById, assaultPayload, loadSettings, payloadFor, saveSettings, tokenName,
 } from "./shared.js";
 
 const $ = (id) => document.getElementById(id);
@@ -29,12 +29,15 @@ function initVolume() {
 
 function updateControls() {
   const assault = mode() === "assault";
+  const anchor = mode() === "anchor";
   $("crystalFields").hidden = assault;
   $("assaultFields").hidden = !assault;
+  $("subtitleField").hidden = anchor;
+  $("titleField").hidden = !anchor;
   $("animDesc").textContent = animationById(mode()).description;
   $("hint").innerHTML = assault
     ? "Tip: select 2–5 tokens. <b>First = lead, last = target.</b> Click any card to replace it with the selected token."
-    : "Tip: you can also right-click a token → <b>Play Intro Cutscene</b>.";
+    : `Tip: you can also right-click a token → <b>${animationById(mode()).label}</b>.`;
   const ready = assault ? team.some(Boolean) && !!target : !!current;
   $("play").disabled = $("preview-btn").disabled = !ready;
 }
@@ -185,6 +188,20 @@ async function play(destination) {
     return;
   }
   if (!current) return;
+  if (mode() === "anchor") {
+    const settings = saveSettings({
+      title: $("title").value.trim() || "ANCHOR",
+      reveal: $("reveal").checked,
+    });
+    const payload = anchorPayload(current, {
+      name: $("name").value.trim() || tokenName(current),
+      title: settings.title,
+      reveal: destination === "ALL" && settings.reveal,
+      revealBy: OBR.player.id,
+    });
+    await OBR.broadcast.sendMessage(CHANNEL, payload, { destination });
+    return;
+  }
   const settings = saveSettings({
     subtitle: $("subtitle").value.trim(),
     reveal: $("reveal").checked,
@@ -216,6 +233,7 @@ OBR.onReady(async () => {
   for (const a of ANIMATIONS) $("animation").add(new Option(a.label, a.id));
   $("animation").value = animationById(s.animation).id;
   $("subtitle").value = s.subtitle;
+  $("title").value = s.title;
   $("reveal").checked = s.reveal;
   $("caption").value = s.caption;
   $("accent").value = s.accent;
@@ -225,6 +243,7 @@ OBR.onReady(async () => {
   });
   $("name").addEventListener("input", () => (nameEdited = true));
   $("subtitle").addEventListener("change", () => saveSettings({ subtitle: $("subtitle").value.trim() }));
+  $("title").addEventListener("change", () => saveSettings({ title: $("title").value.trim() || "ANCHOR" }));
   $("reveal").addEventListener("change", () => saveSettings({ reveal: $("reveal").checked }));
   $("caption").addEventListener("change", () => saveSettings({ caption: $("caption").value.trim() || "CURTAIN CALL" }));
   $("accent").addEventListener("input", () => saveSettings({ accent: $("accent").value }));

@@ -30,8 +30,8 @@ GM เลือก token แล้วกดเล่น ผู้เล่นท
 - **Popover:** click the crystal icon in the toolbar, select a token on the map, then
   **▶ Play for everyone**. **Preview only for me** plays it on your screen only.
   (กดไอคอนคริสตัล → เลือก token → กด Play for everyone)
-- **Right-click:** right-click any image token → **Play Intro Cutscene** (GM only).
-  (คลิกขวาที่ token → Play Intro Cutscene)
+- **Right-click:** right-click any image token → **Break Through** or **Anchor** (GM only).
+  (คลิกขวาที่ token → Break Through หรือ Anchor)
 - **Name / subtitle:** the name defaults to the token's label. You can rename it and add a subtitle.
 - **Reveal on map:** if ticked, a hidden token becomes visible on the map when the intro ends.
   (ติ๊ก “Make the token visible…” เพื่อให้ token ที่ซ่อนอยู่ปรากฏบนแผนที่หลังจบอนิเมชั่น)
@@ -42,17 +42,23 @@ GM เลือก token แล้วกดเล่น ผู้เล่นท
 The GM chooses the animation from the **Animation** menu in the popover.
 (GM เลือกอนิเมชันจากเมนู **Animation** ในหน้าต่างของ Extension)
 
-- **Crystal Intro:** the original one-token cutscene, synced to music.
-- **Team Assault:** 1–4 player tokens appear in panes of glass, the glass shatters, and the team rushes
+- **Break Through:** the original one-token crystal cutscene, synced to music.
+- **All Out Attack:** 1–4 player tokens appear in panes of glass, the glass shatters, and the team rushes
   1 target in black silhouette. The lead then lands, rises into a pose, and ends on a comic-style card.
   Every cue follows `public/audio/finisher.mp3`.
   (ฝั่งผู้เล่น 1–4 ตัวเปิดตัวในกระจก พุ่งโจมตีเป้าหมาย 1 ตัวเป็นเงาดำ แล้วตัวหลักลงมายืนตอนจบ)
+- **Anchor:** a two-tone (electric blue / white) lyric cutscene of about 46 s for one token. The token's name
+  opens the video, then the token floats underwater, stands under an umbrella in the rain, sits on a beach,
+  rides an anchor inside a magic circle, tumbles on the beat between film strips, clings to a swinging
+  anchor, and falls through the sky. The title card text (default `ANCHOR`) can be changed in the popover.
+  Every cut follows `public/audio/anchor.mp3` (about 190 BPM; the beat grid drives the film-strip section).
+  (อนิเมชันโทนน้ำเงิน-ขาว token 1 ตัว ชื่อ token ขึ้นตอนเปิด แล้วไปตามฉากใต้น้ำ ฝน ชายหาด สมอ ฟิล์ม และท้องฟ้า)
 
-To play Team Assault, select 2–5 tokens: **the first is the lead and the last is the target**. Then press
-**▶ Play for everyone** or right-click → **Team Assault**. In the popover, click a card to put the selected
+To play All Out Attack, select 2–5 tokens: **the first is the lead and the last is the target**. Then press
+**▶ Play for everyone** or right-click → **All Out Attack**. In the popover, click a card to put the selected
 token there, and press **Lead** to choose the main character. Transparent PNG tokens give the best silhouettes.
 
-## Cue sheet (synced to `public/audio/intro.mp3`)
+## Break Through cue sheet (synced to `public/audio/intro.mp3`)
 
 The audio is the master clock: every frame is drawn from `audio.currentTime`, so picture and
 music cannot drift apart. Times are in seconds of the original soundtrack; the bundled mp3 starts at 4.4 s.
