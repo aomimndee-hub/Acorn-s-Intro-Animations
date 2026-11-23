@@ -283,6 +283,191 @@ function typed(ctx, st, line, t0, t1, t, { x = 0.06, y = 0.86, end = Infinity } 
   title(ctx, line.slice(0, n).toUpperCase(), W * x, H * y, H * 0.03, { alpha: a, spacing: 0.06, align: "left" });
 }
 
+// ---- flying forward through the stars (after the drop) ------------------------------------
+
+// A few recognisable star patterns (unit coordinates, roughly centred).
+const SHAPES = [
+  // Orion
+  { pts: [[-0.3, -0.5], [0.3, -0.45], [-0.08, 0], [0, 0.02], [0.08, 0.04], [-0.32, 0.5], [0.28, 0.55]], lines: [[0, 2], [1, 4], [2, 3], [3, 4], [2, 5], [4, 6]] },
+  // Cassiopeia
+  { pts: [[-0.5, -0.1], [-0.25, 0.2], [0, -0.05], [0.25, 0.22], [0.5, -0.15]], lines: [[0, 1], [1, 2], [2, 3], [3, 4]] },
+  // Big Dipper
+  { pts: [[-0.55, -0.2], [-0.32, -0.12], [-0.12, -0.05], [0.08, 0.02], [0.12, 0.3], [0.45, 0.32], [0.48, 0.05]], lines: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 3]] },
+  // Cygnus
+  { pts: [[0, -0.55], [0, -0.15], [0, 0.15], [0, 0.55], [-0.45, -0.05], [0.45, -0.25]], lines: [[0, 1], [1, 2], [2, 3], [4, 1], [1, 5]] },
+  // Leo
+  { pts: [[-0.45, 0.25], [-0.2, 0.05], [0.05, 0.1], [0.25, -0.15], [0.2, -0.4], [0.4, -0.45], [0.45, 0.2]], lines: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [2, 6], [6, 0]] },
+  // Lyra
+  { pts: [[0, -0.5], [-0.15, -0.1], [0.15, -0.05], [-0.1, 0.35], [0.2, 0.4]], lines: [[0, 1], [0, 2], [1, 2], [1, 3], [2, 4], [3, 4]] },
+  // Virgo
+  { pts: VIRGO.map(([x, y]) => [(x - 0.5) * 1.4, (y - 0.47) * 1.4]), lines: VIRGO_LINES },
+];
+
+/** Distance travelled: steady cruise plus a surge on every bar. */
+function travelPhase(t) {
+  const lt = Math.max(0, t - DROP);
+  const bars = lt / BAR;
+  const whole = Math.floor(bars);
+  const surge = whole + easeOutCubic(clamp((bars - whole) * BAR / 0.45));
+  return lt * 0.42 + surge * 0.22;
+}
+
+function travel(ctx, st, t, amount) {
+  if (amount <= 0.01) return;
+  const { W, H, U, S } = st;
+  const ph = travelPhase(t);
+  const cx = W / 2;
+  const cy = H * 0.48;
+  const F = Math.max(W, H) * 0.32; // focal length in pixels
+  const D = Math.hypot(W, H) * 0.62;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+
+  // speed lines: always streaming out from the vanishing point
+  for (let i = 0; i < 90; i++) {
+    const a = hash(i * 7 + 3) * TAU;
+    const d = (hash(i * 13) + ph * (0.9 + hash(i * 5) * 0.8)) % 1;
+    const r0 = Math.pow(d, 1.8) * D;
+    const len = (0.04 + d * 0.32) * D;
+    const al = Math.sin(d * Math.PI) * 0.5 * amount;
+    if (al < 0.01) continue;
+    const g = ctx.createLinearGradient(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0, cx + Math.cos(a) * (r0 + len), cy + Math.sin(a) * (r0 + len));
+    g.addColorStop(0, "rgba(255,255,255,0)");
+    g.addColorStop(1, `rgba(235,240,255,${al})`);
+    ctx.strokeStyle = g;
+    ctx.lineWidth = (0.6 + d * 2.4) * U;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+    ctx.lineTo(cx + Math.cos(a) * (r0 + len), cy + Math.sin(a) * (r0 + len));
+    ctx.stroke();
+  }
+
+  // small stars rushing past, drawn as short trails
+  const proj = (x, y, z) => [cx + (x / z) * F, cy + (y / z) * F];
+  for (let i = 0; i < 220; i++) {
+    const x = (hash(i * 3) - 0.5) * 4;
+    const y = (hash(i * 5) - 0.5) * 2.6;
+    if (Math.abs(x) < 0.08 && Math.abs(y) < 0.08) continue;
+    const z = 1 - ((hash(i * 7) + ph * 0.55) % 1) * 0.94;
+    const z2 = Math.min(1, z + 0.03 + 0.04 * amount);
+    const [px, py] = proj(x, y, z);
+    const [qx, qy] = proj(x, y, z2);
+    if (px < -20 || px > W + 20 || py < -20 || py > H + 20) continue;
+    const near = 1 - z;
+    ctx.strokeStyle = `rgba(255,255,255,${(0.25 + 0.75 * near) * amount})`;
+    ctx.lineWidth = (0.5 + near * 2.5) * U;
+    ctx.beginPath();
+    ctx.moveTo(qx, qy);
+    ctx.lineTo(px, py);
+    ctx.stroke();
+  }
+
+  // constellations floating toward us and sliding past
+  const LANES = 3;
+  const P = 2.1; // phase units per constellation in a lane
+  for (let j = 0; j < LANES; j++) {
+    const k = ph / P + j / LANES;
+    const id = Math.floor(k) * LANES + j;
+    const u = k - Math.floor(k);
+    const shape = SHAPES[Math.floor(hash(id * 17 + 5) * SHAPES.length)];
+    const ang = hash(id * 23) * TAU;
+    const rad = 0.55 + hash(id * 29) * 0.5;
+    const ox = Math.cos(ang) * rad * 1.5;
+    const oy = Math.sin(ang) * rad;
+    const rot = (hash(id * 31) - 0.5) * 1.2;
+    const sc = 0.85 + hash(id * 37) * 0.5;
+    const z = 1.05 - u * 0.98;
+    const al = smooth(u, 0, 0.25) * (1 - smooth(u, 0.82, 1)) * amount;
+    if (al < 0.01) continue;
+    const pts = shape.pts.map(([x, y]) => {
+      const rx = x * Math.cos(rot) - y * Math.sin(rot);
+      const ry = x * Math.sin(rot) + y * Math.cos(rot);
+      return proj(ox + rx * sc, oy + ry * sc, z);
+    });
+    ctx.strokeStyle = `rgba(230,236,255,${0.8 * al})`;
+    ctx.shadowColor = "rgba(255,255,255,0.9)";
+    ctx.shadowBlur = 6 * U;
+    ctx.lineWidth = (1.2 + (1 - z) * 2.4) * U;
+    ctx.beginPath();
+    for (const [a, b] of shape.lines) {
+      ctx.moveTo(pts[a][0], pts[a][1]);
+      ctx.lineTo(pts[b][0], pts[b][1]);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    const size = H * (0.05 + (1 - z) * 0.2);
+    pts.forEach(([x, y], n) => {
+      const tw = 0.75 + 0.25 * Math.sin(t * 5 + n + id);
+      sprite(ctx, S.glowW, x, y, size * 0.6, size * 0.6, al * 0.8);
+      sprite(ctx, S.star, x, y, size * tw, size * tw, al, (n % 2) * 0.4);
+    });
+  }
+  ctx.restore();
+}
+
+/** Spectrum bars hugging all four edges of the screen. */
+function spectrum(ctx, st, t, amount) {
+  if (amount <= 0.01) return;
+  const { W, H, U } = st;
+  const N = 48;
+  const v = new Array(N);
+  if (st.freq && st.analyser) {
+    const f = st.freq;
+    for (let i = 0; i < N; i++) {
+      // log-spaced bins so the bass does not hog the bars
+      const lo = Math.floor(Math.pow(i / N, 1.7) * (f.length - 1));
+      const hi = Math.max(lo + 1, Math.floor(Math.pow((i + 1) / N, 1.7) * (f.length - 1)));
+      let m = 0;
+      for (let b = lo; b < hi; b++) m = Math.max(m, f[b]);
+      v[i] = Math.pow(m / 255, 1.6);
+    }
+  } else {
+    // stand-in when no live audio: driven by the beat grid
+    const fr = Math.floor(t * 20);
+    const bp = beatPulse(t, 0.14);
+    const bars = barPulse(t, 0.3);
+    for (let i = 0; i < N; i++) {
+      const tilt = 1 - (i / N) * 0.6;
+      const n = 0.5 * hash(i * 7 + fr) + 0.5 * hash(i * 13 + fr - 1);
+      v[i] = clamp(tilt * (0.18 + 0.55 * bp * (i < 10 ? 1 : 0.5) + 0.35 * bars) * (0.5 + 0.6 * n));
+    }
+  }
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.fillStyle = `rgba(240,244,255,${0.85 * amount})`;
+  ctx.shadowColor = "rgba(255,255,255,0.9)";
+  ctx.shadowBlur = 8 * U;
+  const maxH = H * 0.11;
+  // bottom and top: mirrored from the centre outward
+  const bw = W / 2 / N;
+  for (let i = 0; i < N; i++) {
+    const h = Math.max(1.5 * U, v[i] * maxH);
+    for (const side of [-1, 1]) {
+      const x = W / 2 + side * (i + 0.5) * bw - bw * 0.3;
+      ctx.fillRect(x, H - h, bw * 0.6, h);
+      ctx.fillRect(x, 0, bw * 0.6, h * 0.75);
+    }
+  }
+  // left and right: mirrored from the middle up and down
+  const bh = H / 2 / N;
+  for (let i = 0; i < N; i++) {
+    const w = Math.max(1.5 * U, v[i] * maxH * 0.8);
+    for (const side of [-1, 1]) {
+      const y = H / 2 + side * (i + 0.5) * bh - bh * 0.3;
+      ctx.fillRect(0, y, w, bh * 0.6);
+      ctx.fillRect(W - w, y, w, bh * 0.6);
+    }
+  }
+  ctx.restore();
+}
+
+/** Travel runs from the drop to the end; it eases off in the quiet break. */
+function travelAmount(t) {
+  if (t < DROP || t >= T.out) return 0;
+  const brk = smooth(t, T.brk, T.brk + 0.4) * (1 - smooth(t, T.reveal - 0.3, T.reveal));
+  return smooth(t, DROP, DROP + 0.3) * (1 - brk * 0.75);
+}
+
 function backdrop(ctx, st, t, lift = 0) {
   const { W, H, U, S } = st;
   const g = ctx.createRadialGradient(W / 2, H * 0.45, 0, W / 2, H * 0.45, Math.hypot(W, H) * 0.6);
@@ -318,6 +503,7 @@ function backdrop(ctx, st, t, lift = 0) {
     ctx.arc(W * (0.2 + hash(i * 5) * 0.7), H * (0.2 + hash(i * 9) * 0.6) - t * 4 * U, (3 + hash(i) * 3) * U, 0, TAU);
     ctx.stroke();
   }
+  travel(ctx, st, t, travelAmount(t));
 }
 
 function letterbox(ctx, st, k) {
@@ -582,27 +768,6 @@ function shotFinale(ctx, st, t) {
   ctx.scale(kick, kick);
   ctx.translate(-cx, -cy);
 
-  // warp: star streaks rushing outward
-  const warp = smooth(t, T.warp, T.warp + 0.3) * (1 - smooth(t, T.stars + 0.6, T.stars + 1.2)) + climax;
-  if (warp > 0.01) {
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    for (let i = 0; i < 140; i++) {
-      const a = hash(i * 7) * TAU;
-      const sp = 0.4 + hash(i * 11) * 1.2;
-      const d = ((hash(i * 13) + t * sp * 0.6) % 1);
-      const r0 = Math.pow(d, 2) * Math.hypot(W, H) * 0.7;
-      const len = (20 + d * 160) * U * (0.5 + warp);
-      ctx.strokeStyle = `rgba(255,255,255,${d * 0.8 * warp})`;
-      ctx.lineWidth = (0.6 + d * 2) * U;
-      ctx.beginPath();
-      ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
-      ctx.lineTo(cx + Math.cos(a) * (r0 + len), cy + Math.sin(a) * (r0 + len));
-      ctx.stroke();
-    }
-    ctx.restore();
-  }
-
   // the crest behind everything from the name bar on
   const crestA = smooth(t, T.name - 0.2, T.name + 0.4);
   if (crestA > 0) sprite(ctx, S.crest, cx, cy, H * 0.95 * (1 + bars * 0.04), H * 0.95 * (1 + bars * 0.04), crestA * 0.55, t * 0.05, false);
@@ -802,31 +967,6 @@ function glitch(ctx, st, t, amount) {
   ctx.restore();
 }
 
-/** Sparks thrown out from the centre on every beat. */
-function sparks(ctx, st, t, amount) {
-  if (amount < 0.05) return;
-  const { W, H, U } = st;
-  const b = beatNo(t);
-  const k = ((((t - DROP) % BEAT) + BEAT) % BEAT) / BEAT;
-  const cx = W / 2;
-  const cy = H * 0.48;
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  for (let i = 0; i < 26; i++) {
-    const a = hash(i * 3 + b * 101) * TAU;
-    const sp = 0.25 + hash(i * 5 + b * 7) * 0.6;
-    const r0 = H * 0.08 + easeOutCubic(k) * Math.hypot(W, H) * 0.5 * sp;
-    const len = (30 + 80 * sp) * U * (1 - k);
-    ctx.strokeStyle = `rgba(255,255,255,${(1 - k) * 0.9 * Math.min(1, amount)})`;
-    ctx.lineWidth = (1 + sp * 2) * U;
-    ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
-    ctx.lineTo(cx + Math.cos(a) * (r0 + len), cy + Math.sin(a) * (r0 + len));
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
 /** Light leaking in from the edges on bar hits, and a vignette that breathes with the beat. */
 function edges(ctx, st, t, bar, beat) {
   const { W, H } = st;
@@ -852,13 +992,19 @@ export function render(ctx, st, t) {
   const { W, H, U } = st;
   const e = hitEnergy(t);
   ctx.save();
-  // screen shake: hard on the bar, lighter on every beat, with a touch of roll
-  if (e.k > 0) {
+  const fl = travelAmount(t) > 0 ? Math.max(0.4, travelAmount(t)) : 0;
+  if (fl > 0 || e.k > 0) {
+    // continuous float up and down and a slow tilt left and right
+    const fy = Math.sin(t * 0.85) * H * 0.022 * fl;
+    const fx = Math.sin(t * 0.47 + 1) * W * 0.008 * fl;
+    const tilt = Math.sin(t * 0.52) * 0.045 * fl;
+    // shake: hard on the bar, lighter on every beat
     const f = Math.floor(t * 60);
     const amp = (16 * e.bar + 6 * e.beat) * U;
-    ctx.translate(W / 2 + (hash(f) - 0.5) * amp * 2, H / 2 + (hash(f + 31) - 0.5) * amp * 2);
-    ctx.rotate((hash(f + 77) - 0.5) * 0.02 * e.bar);
-    const z = 1 + 0.03 * e.bar + 0.01 * e.beat;
+    ctx.translate(W / 2 + fx + (hash(f) - 0.5) * amp * 2, H / 2 + fy + (hash(f + 31) - 0.5) * amp * 2);
+    ctx.rotate(tilt + (hash(f + 77) - 0.5) * 0.02 * e.bar);
+    // overscan so the tilt never shows a bare corner
+    const z = (1 + 0.1 * fl) * (1 + 0.03 * e.bar + 0.01 * e.beat);
     ctx.scale(z, z);
     ctx.translate(-W / 2, -H / 2);
   }
@@ -873,7 +1019,6 @@ export function render(ctx, st, t) {
   else shotEnd(ctx, st, t);
   ctx.restore();
   if (e.k > 0) {
-    sparks(ctx, st, t, e.k > 0.5 ? 1 : 0);
     edges(ctx, st, t, e.bar, e.beat);
     zoomBlur(ctx, st, e.bar);
     // every other bar glitches on its downbeat; the climax glitches more
@@ -881,6 +1026,7 @@ export function render(ctx, st, t) {
     if (barNo % 2 === 1 || t >= T.final) glitch(ctx, st, t, e.bar);
     chromatic(ctx, st, (e.bar * 9 + e.beat * 3) * (ctx.canvas.width / W) * U);
   }
+  spectrum(ctx, st, t, travelAmount(t) > 0 ? Math.max(0.35, travelAmount(t)) : 0);
   if (t > T.peace && t < T.out) {
     ctx.save();
     ctx.globalAlpha = 0.8;

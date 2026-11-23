@@ -149,9 +149,38 @@ async function finish() {
 function frame() {
   if (finished) return;
   const t = now();
+  if (state.analyser) state.analyser.getByteFrequencyData(state.freq);
   render(ctx, state, Math.min(t, T.end));
   if (t >= T.end) return finish();
   requestAnimationFrame(frame);
+}
+
+/**
+ * Real spectrum for the edge visualizer. The element is routed through Web
+ * Audio only when the context is already running, so a suspended context can
+ * never silence the music; otherwise the scene draws a beat-driven spectrum.
+ */
+async function connectAnalyser() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    const ac = new AC();
+    await ac.resume();
+    if (ac.state !== "running") {
+      ac.close();
+      return;
+    }
+    const src = ac.createMediaElementSource(audio);
+    const an = ac.createAnalyser();
+    an.fftSize = 256;
+    an.smoothingTimeConstant = 0.72;
+    src.connect(an);
+    an.connect(ac.destination);
+    state.analyser = an;
+    state.freq = new Uint8Array(an.frequencyBinCount);
+  } catch {
+    state.analyser = null;
+  }
 }
 
 async function begin() {
@@ -160,6 +189,7 @@ async function begin() {
   try {
     await audio.play();
     audioOk = true;
+    await connectAnalyser();
   } catch {
     audioOk = false;
   }
