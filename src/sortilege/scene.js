@@ -146,6 +146,183 @@ function shotEra(ctx, st, t) {
   }
 }
 
+// ---- cinematic light ---------------------------------------------------------------------
+
+/** Blurred light textures, built once: a fan of beams, lancet window light, and haze. */
+function lightSprites(st) {
+  if (st._light) return st._light;
+  const blur = (c, px) => {
+    if (!supportsFilter) return c;
+    const o = makeCanvas(c.width, c.height);
+    const x = o.getContext("2d");
+    x.filter = `blur(${px}px)`;
+    x.drawImage(c, 0, 0);
+    return o;
+  };
+  // a fan of tapering beams; the source is the top-left corner of the texture
+  const S = 1024;
+  const fan = makeCanvas(S, S);
+  const f = fan.getContext("2d");
+  const r = rng(71);
+  for (let i = 0; i < 11; i++) {
+    const a = 0.25 + (i / 10) * 1.05 + (r() - 0.5) * 0.06;
+    const w = 0.025 + r() * 0.05;
+    const len = S * (1.05 + r() * 0.35);
+    const g = f.createLinearGradient(0, 0, Math.cos(a) * len, Math.sin(a) * len);
+    const k = 0.35 + r() * 0.65;
+    g.addColorStop(0, `rgba(255,255,255,${0.9 * k})`);
+    g.addColorStop(0.45, `rgba(255,255,255,${0.35 * k})`);
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    f.fillStyle = g;
+    f.beginPath();
+    f.moveTo(0, 0);
+    f.lineTo(Math.cos(a - w) * len, Math.sin(a - w) * len);
+    f.lineTo(Math.cos(a + w) * len, Math.sin(a + w) * len);
+    f.closePath();
+    f.fill();
+  }
+  // light through three pointed lancets, as cast on a wall
+  const gobo = makeCanvas(900, 700);
+  const g2 = gobo.getContext("2d");
+  g2.fillStyle = "#fff";
+  for (let i = 0; i < 3; i++) {
+    const l = 90 + i * 260;
+    const rr = l + 180;
+    g2.beginPath();
+    g2.moveTo(l, 680);
+    g2.lineTo(l, 260);
+    g2.quadraticCurveTo(l, 120, (l + rr) / 2, 80);
+    g2.quadraticCurveTo(rr, 120, rr, 260);
+    g2.lineTo(rr, 680);
+    g2.closePath();
+    g2.fill();
+  }
+  // soft haze clouds
+  const haze = makeCanvas(512, 512);
+  const h = haze.getContext("2d");
+  for (let i = 0; i < 40; i++) {
+    const px = 60 + r() * 392;
+    const py = 120 + r() * 272;
+    const rr = 40 + r() * 110;
+    const hg = h.createRadialGradient(px, py, 0, px, py, rr);
+    hg.addColorStop(0, `rgba(255,255,255,${0.06 + r() * 0.08})`);
+    hg.addColorStop(1, "rgba(255,255,255,0)");
+    h.fillStyle = hg;
+    h.fillRect(0, 0, 512, 512);
+  }
+  st._light = { fan: blur(fan, 14), fan2: blur(fan, 34), gobo: blur(gobo, 22), haze: blur(haze, 10) };
+  return st._light;
+}
+
+function tinted(st, key, img, rgb) {
+  const cache = (st._tint ||= {});
+  const k = `${key}|${rgb}`;
+  if (cache[k]) return cache[k];
+  const c = makeCanvas(img.width, img.height);
+  const x = c.getContext("2d");
+  x.drawImage(img, 0, 0);
+  x.globalCompositeOperation = "source-in";
+  x.fillStyle = `rgb(${rgb})`;
+  x.fillRect(0, 0, c.width, c.height);
+  cache[k] = c;
+  return c;
+}
+
+/**
+ * Light falling into the scene from (sx, sy) toward `ang`: two layers of
+ * volumetric beams, haze lit by them, glittering dust, and the shadow side.
+ */
+function cinematicLight(ctx, st, t, o) {
+  const { W, H, U } = st;
+  const L = lightSprites(st);
+  const flicker = 0.9 + 0.06 * Math.sin(t * 7.3) + 0.04 * Math.sin(t * 13.1 + 1);
+  const D = Math.hypot(W, H) * o.reach;
+  // the shadow side: light falls off away from the source
+  const sh = ctx.createLinearGradient(o.sx, o.sy, o.sx + Math.cos(o.ang) * D * 0.9, o.sy + Math.sin(o.ang) * D * 0.9);
+  sh.addColorStop(0, `rgba(${o.shadow},0)`);
+  sh.addColorStop(0.55, `rgba(${o.shadow},${0.08 * o.dark})`);
+  sh.addColorStop(1, `rgba(${o.shadow},${0.6 * o.dark})`);
+  ctx.save();
+  ctx.globalCompositeOperation = "multiply";
+  ctx.fillStyle = sh;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  // wide soft beams, then sharper ones, each swaying slowly
+  for (const [img, k, sway, alpha] of [[L.fan2, 1.15, 0.03, 0.45], [L.fan, 1.0, 0.05, 0.85]]) {
+    ctx.save();
+    ctx.globalAlpha = alpha * o.strength * flicker;
+    ctx.translate(o.sx, o.sy);
+    ctx.rotate(o.ang - 0.8 + Math.sin(t * 0.35 + k) * sway);
+    ctx.drawImage(tinted(st, `fan${k}`, img, o.rgb), 0, 0, D * k, D * k);
+    ctx.restore();
+  }
+  // haze drifting through the light
+  ctx.globalAlpha = 0.28 * o.strength;
+  const hz = tinted(st, "haze", L.haze, o.rgb);
+  for (let i = 0; i < 3; i++) {
+    const hx = o.sx + Math.cos(o.ang) * D * (0.25 + i * 0.2) + Math.sin(t * 0.2 + i * 2) * W * 0.05 - W * 0.35;
+    const hy = o.sy + Math.sin(o.ang) * D * (0.25 + i * 0.2) - H * 0.35;
+    ctx.drawImage(hz, hx, hy, W * 0.7, W * 0.7);
+  }
+  ctx.restore();
+  // dust motes, brightest where the beams are
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.fillStyle = `rgb(${o.rgb})`;
+  for (let i = 0; i < 70; i++) {
+    const a = o.ang - 0.55 + hash(i * 3) * 1.1;
+    const d = D * (0.08 + hash(i * 5) * 0.75);
+    const drift = t * (0.01 + hash(i * 7) * 0.02);
+    const x = o.sx + Math.cos(a) * d + Math.sin(t * 0.6 + i) * 10 * U;
+    const y = o.sy + Math.sin(a) * d + ((drift * H) % (H * 0.2));
+    const tw = Math.pow(Math.max(0, Math.sin(t * (1.5 + hash(i) * 3) + i * 1.7)), 3);
+    ctx.globalAlpha = (0.15 + 0.75 * tw) * o.strength;
+    const r = (0.8 + hash(i * 11) * 1.6) * U;
+    ctx.fillRect(x, y, r, r);
+  }
+  ctx.restore();
+}
+
+/** Warm light leak breathing in from one edge of the frame. */
+function lightLeak(ctx, st, t, x, y, rgb, alpha) {
+  const { W, H } = st;
+  const a = alpha * (0.6 + 0.4 * Math.sin(t * 0.9));
+  const g = ctx.createRadialGradient(x, y, 0, x, y, H * 0.9);
+  g.addColorStop(0, `rgba(${rgb},${a})`);
+  g.addColorStop(0.4, `rgba(${rgb},${a * 0.35})`);
+  g.addColorStop(1, `rgba(${rgb},0)`);
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+/** Anamorphic flare: a long thin streak with soft ghosts along the axis. */
+function flare(ctx, st, x, y, rgb, alpha) {
+  const { W, H, A } = st;
+  if (alpha <= 0.01) return;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  const g = ctx.createLinearGradient(x - W * 0.6, 0, x + W * 0.6, 0);
+  g.addColorStop(0, `rgba(${rgb},0)`);
+  g.addColorStop(0.5, `rgba(${rgb},${alpha})`);
+  g.addColorStop(1, `rgba(${rgb},0)`);
+  ctx.fillStyle = g;
+  ctx.fillRect(x - W * 0.6, y - H * 0.004, W * 1.2, H * 0.008);
+  ctx.globalAlpha = alpha * 0.5;
+  ctx.drawImage(A.bokeh, x - H * 0.08, y - H * 0.08, H * 0.16, H * 0.16);
+  for (const [k, s] of [[0.35, 0.05], [0.7, 0.09], [1.2, 0.04]]) {
+    const gx = lerp(x, W / 2, k * 2);
+    const gy = lerp(y, H / 2, k * 2);
+    ctx.globalAlpha = alpha * 0.25;
+    ctx.drawImage(A.bokeh, gx - H * s, gy - H * s, H * s * 2, H * s * 2);
+  }
+  ctx.restore();
+}
+
 // ---- chapter I: sepia architecture -------------------------------------------------------
 
 function sepiaLight(ctx, st, t) {
@@ -153,8 +330,8 @@ function sepiaLight(ctx, st, t) {
   const g = ctx.createRadialGradient(W * 0.62, H * 0.2, 0, W * 0.55, H * 0.35, Math.hypot(W, H) * 0.75);
   g.addColorStop(0, "#fffaf0");
   g.addColorStop(0.35, "#efe2c6");
-  g.addColorStop(0.7, "#a8916f");
-  g.addColorStop(1, "#3b2c1d");
+  g.addColorStop(0.62, "#9c8361");
+  g.addColorStop(1, "#24180c");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
   // broad diagonal shafts of light, drifting
@@ -237,7 +414,19 @@ function shotSepia(ctx, st, t) {
     ctx.fillRect(0, 0, W, H);
     ctx.restore();
   }
-  vignette(ctx, st, 0.55, "40,26,12");
+  // window-shaped light thrown across the left of the frame
+  const L = lightSprites(st);
+  const goboA = smooth(t, T.sepia, T.sepia + 1.2) * (0.85 + 0.15 * Math.sin(t * 0.8));
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.globalAlpha = 0.32 * goboA;
+  ctx.translate(W * 0.05 + Math.sin(t * 0.25) * W * 0.01, H * 0.25);
+  ctx.transform(1, 0.35, -0.55, 1, 0, 0);
+  ctx.drawImage(tinted(st, "gobo", L.gobo, "255,236,200"), 0, 0, W * 0.55, H * 0.8);
+  ctx.restore();
+  cinematicLight(ctx, st, t, { sx: W * 0.92, sy: -H * 0.18, ang: 2.2, reach: 1.15, rgb: "255,236,196", shadow: "52,32,14", strength: 1, dark: 0.8 });
+  lightLeak(ctx, st, t, W * 1.02, H * 0.15, "255,190,110", 0.35);
+  vignette(ctx, st, 0.65, "30,18,6");
   // label I, typed onto torn paper
   label(ctx, st, t, A.paper1, "I. The magic of time", W * 0.64, H * 0.13, H * 0.115, T.label1, T.label1Out, -0.01, false);
   // first light: the cut lands on a flash of warm white
@@ -292,9 +481,9 @@ function label(ctx, st, t, paper, str, cx, cy, size, t0, t1, rot, flowers) {
 function violetLight(ctx, st, t) {
   const { W, H, A } = st;
   const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, "#3a2a6a");
-  g.addColorStop(0.45, "#5b2f8f");
-  g.addColorStop(1, "#21123b");
+  g.addColorStop(0, "#2c2258");
+  g.addColorStop(0.45, "#43226e");
+  g.addColorStop(1, "#0f0820");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
   // tall blurred window light
@@ -304,7 +493,7 @@ function violetLight(ctx, st, t) {
     const x = W * (0.12 + i * 0.16) + Math.sin(t * 0.4 + i) * W * 0.01;
     const w = W * (0.05 + hash(i * 3) * 0.05);
     const lg = ctx.createLinearGradient(x - w, 0, x + w, 0);
-    const a = 0.16 + 0.12 * hash(i * 7);
+    const a = 0.1 + 0.1 * hash(i * 7);
     lg.addColorStop(0, "rgba(150,170,255,0)");
     lg.addColorStop(0.5, `rgba(170,185,255,${a})`);
     lg.addColorStop(1, "rgba(150,170,255,0)");
@@ -324,7 +513,7 @@ function violetLight(ctx, st, t) {
     ctx.drawImage(A.bokeh, x - s / 2 + 2, y - s / 2, s, s);
   }
   ctx.restore();
-  vignette(ctx, st, 0.6, "10,4,24");
+  vignette(ctx, st, 0.85, "6,2,16");
 }
 
 function shotViolet(ctx, st, t) {
@@ -349,6 +538,9 @@ function shotViolet(ctx, st, t) {
   ctx.globalAlpha = 0.5;
   ctx.drawImage(A.bokeh, fx - H * 0.06, H * 0.15 - H * 0.06, H * 0.12, H * 0.12);
   ctx.restore();
+  cinematicLight(ctx, st, t, { sx: W * 0.32, sy: -H * 0.25, ang: 1.75, reach: 1.1, rgb: "170,190,255", shadow: "12,4,30", strength: 0.9, dark: 0.7 });
+  flare(ctx, st, W * (0.28 + (t - T.violet) * 0.012), H * 0.17, "150,200,255", 0.55);
+  lightLeak(ctx, st, t, -W * 0.02, H * 0.1, "120,170,255", 0.25);
   label(ctx, st, t, A.paper2, "II. The fount of knowledge", W * 0.44, H * 0.5, H * 0.115, T.label2, T.label2Out, -0.015, true);
   // the light swells before the cut
   const swell = smooth(t, 12.9, T.flash);
@@ -415,7 +607,7 @@ function lilacLight(ctx, st, t, dark) {
   const { W, H } = st;
   const g = ctx.createLinearGradient(0, 0, W, H);
   const pale = ["#e2c3ee", "#cfa5e2", "#b98ad6"];
-  const deep = ["#8e1fa8", "#5a1478", "#a32ab8"];
+  const deep = ["#7a168f", "#3e0c5a", "#8e1fa6"];
   const mix = (a, b) => {
     const pa = parseInt(a.slice(1), 16);
     const pb = parseInt(b.slice(1), 16);
@@ -489,6 +681,9 @@ function shotLilac(ctx, st, t) {
     const y = H * (0.1 + hash(i * 7) * 0.8);
     sparkle(ctx, x, y, H * (0.02 + hash(i) * 0.03), (0.4 + 0.6 * Math.abs(Math.sin(t * 2 + i))) * a);
   }
+
+  cinematicLight(ctx, st, t, { sx: W * 0.98, sy: -H * 0.2, ang: 2.25, reach: 1.2, rgb: "255,205,250", shadow: "40,0,60", strength: 0.75, dark: 0.6 + 0.4 * dark });
+  lightLeak(ctx, st, t, W * 0.95, -H * 0.05, "255,170,240", 0.3);
 
   // III: wide-spaced letters that pull together
   const sightA = smooth(t, T.sight, T.sight + 0.2) * (1 - smooth(t, T.sightOut, T.sightOut + 0.35));
