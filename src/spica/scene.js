@@ -709,9 +709,159 @@ function shotEnd(ctx, st, t) {
 
 // ---- composite ------------------------------------------------------------------------
 
-export function render(ctx, st, t) {
-  const { W, H } = st;
+// ---- post-drop impact effects ------------------------------------------------------------
+
+/** How hard the music is hitting right now (0 before the drop and in the break). */
+function hitEnergy(t) {
+  if (t < DROP || t >= T.out) return { bar: 0, beat: 0, k: 0 };
+  // the break is quiet: let the effects rest there
+  const k = t >= T.brk && t < T.reveal ? 0.15 : t >= T.final ? 1.5 : 1;
+  return { bar: barPulse(t, 0.16) * k, beat: beatPulse(t, 0.07) * k, k };
+}
+
+function tempCanvas(st, key, w, h) {
+  const c = (st._tmp ||= {})[key];
+  if (c && c.width === w && c.height === h) return c;
+  const n = makeCanvas(w, h);
+  st._tmp[key] = n;
+  return n;
+}
+
+/** RGB split: keep green in place, shift red and blue apart. Works in device pixels. */
+function chromatic(ctx, st, px) {
+  if (px < 0.6) return;
+  const c = ctx.canvas;
+  const w = c.width;
+  const h = c.height;
+  const src = tempCanvas(st, "src", w, h);
+  const sx = src.getContext("2d");
+  sx.globalCompositeOperation = "copy";
+  sx.drawImage(c, 0, 0);
+  const ch = (key, color) => {
+    const o = tempCanvas(st, key, w, h);
+    const x = o.getContext("2d");
+    x.globalCompositeOperation = "copy";
+    x.drawImage(src, 0, 0);
+    x.globalCompositeOperation = "multiply";
+    x.fillStyle = color;
+    x.fillRect(0, 0, w, h);
+    return o;
+  };
+  const red = ch("r", "#ff0000");
+  const blue = ch("b", "#0000ff");
   ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalCompositeOperation = "multiply";
+  ctx.fillStyle = "#00ff00";
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalCompositeOperation = "lighter";
+  // the shifted copies are scaled up a touch so no bare strip shows at the edges
+  const g = px * 2;
+  ctx.drawImage(red, -px - g, -g, w + g * 2, h + g * 2);
+  ctx.drawImage(blue, px - g, px * 0.3 - g, w + g * 2, h + g * 2);
+  ctx.restore();
+}
+
+/** Zoom smear: brighter, larger copies of the frame stacked over it. */
+function zoomBlur(ctx, st, amount) {
+  if (amount < 0.03) return;
+  const c = ctx.canvas;
+  const src = tempCanvas(st, "zoom", c.width, c.height);
+  const sx = src.getContext("2d");
+  sx.globalCompositeOperation = "copy";
+  sx.drawImage(c, 0, 0);
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalCompositeOperation = "lighter";
+  for (let i = 1; i <= 3; i++) {
+    const s = 1 + amount * 0.05 * i;
+    ctx.globalAlpha = amount * 0.16 / i;
+    ctx.drawImage(src, (c.width - c.width * s) / 2, (c.height - c.height * s) * 0.48, c.width * s, c.height * s);
+  }
+  ctx.restore();
+}
+
+/** Horizontal glitch slices on some bar hits. */
+function glitch(ctx, st, t, amount) {
+  if (amount < 0.15) return;
+  const c = ctx.canvas;
+  const src = tempCanvas(st, "glitch", c.width, c.height);
+  const sx = src.getContext("2d");
+  sx.globalCompositeOperation = "copy";
+  sx.drawImage(c, 0, 0);
+  const f = Math.floor(t * 30);
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  for (let i = 0; i < 9; i++) {
+    if (hash(i * 7 + f) > 0.6) continue;
+    const y = Math.floor(hash(i * 13 + f) * c.height);
+    const h = Math.floor((0.01 + hash(i * 17 + f) * 0.05) * c.height);
+    const dx = (hash(i * 19 + f) - 0.5) * c.width * 0.08 * amount;
+    ctx.drawImage(src, 0, y, c.width, h, dx, y, c.width, h);
+  }
+  ctx.restore();
+}
+
+/** Sparks thrown out from the centre on every beat. */
+function sparks(ctx, st, t, amount) {
+  if (amount < 0.05) return;
+  const { W, H, U } = st;
+  const b = beatNo(t);
+  const k = ((((t - DROP) % BEAT) + BEAT) % BEAT) / BEAT;
+  const cx = W / 2;
+  const cy = H * 0.48;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (let i = 0; i < 26; i++) {
+    const a = hash(i * 3 + b * 101) * TAU;
+    const sp = 0.25 + hash(i * 5 + b * 7) * 0.6;
+    const r0 = H * 0.08 + easeOutCubic(k) * Math.hypot(W, H) * 0.5 * sp;
+    const len = (30 + 80 * sp) * U * (1 - k);
+    ctx.strokeStyle = `rgba(255,255,255,${(1 - k) * 0.9 * Math.min(1, amount)})`;
+    ctx.lineWidth = (1 + sp * 2) * U;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+    ctx.lineTo(cx + Math.cos(a) * (r0 + len), cy + Math.sin(a) * (r0 + len));
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** Light leaking in from the edges on bar hits, and a vignette that breathes with the beat. */
+function edges(ctx, st, t, bar, beat) {
+  const { W, H } = st;
+  const side = Math.floor((t - DROP) / BAR) % 2;
+  if (bar > 0.03) {
+    const g = ctx.createLinearGradient(side ? W : 0, 0, side ? W * 0.55 : W * 0.45, 0);
+    g.addColorStop(0, `rgba(255,255,255,${0.45 * bar})`);
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+  const v = ctx.createRadialGradient(W / 2, H / 2, H * (0.45 - beat * 0.08), W / 2, H / 2, Math.hypot(W, H) * 0.6);
+  v.addColorStop(0, "rgba(0,0,0,0)");
+  v.addColorStop(1, `rgba(0,0,0,${0.35 + 0.3 * beat})`);
+  ctx.fillStyle = v;
+  ctx.fillRect(0, 0, W, H);
+}
+
+export function render(ctx, st, t) {
+  const { W, H, U } = st;
+  const e = hitEnergy(t);
+  ctx.save();
+  // screen shake: hard on the bar, lighter on every beat, with a touch of roll
+  if (e.k > 0) {
+    const f = Math.floor(t * 60);
+    const amp = (16 * e.bar + 6 * e.beat) * U;
+    ctx.translate(W / 2 + (hash(f) - 0.5) * amp * 2, H / 2 + (hash(f + 31) - 0.5) * amp * 2);
+    ctx.rotate((hash(f + 77) - 0.5) * 0.02 * e.bar);
+    const z = 1 + 0.03 * e.bar + 0.01 * e.beat;
+    ctx.scale(z, z);
+    ctx.translate(-W / 2, -H / 2);
+  }
   if (t < T.peace) fill(ctx, W, H, "#000");
   else if (t < T.star) shotWords(ctx, st, t);
   else if (t < T.squares) shotStar(ctx, st, t);
@@ -722,6 +872,15 @@ export function render(ctx, st, t) {
   else if (t < T.out) shotFinale(ctx, st, t);
   else shotEnd(ctx, st, t);
   ctx.restore();
+  if (e.k > 0) {
+    sparks(ctx, st, t, e.k > 0.5 ? 1 : 0);
+    edges(ctx, st, t, e.bar, e.beat);
+    zoomBlur(ctx, st, e.bar);
+    // every other bar glitches on its downbeat; the climax glitches more
+    const barNo = Math.floor((t - DROP) / BAR);
+    if (barNo % 2 === 1 || t >= T.final) glitch(ctx, st, t, e.bar);
+    chromatic(ctx, st, (e.bar * 9 + e.beat * 3) * (ctx.canvas.width / W) * U);
+  }
   if (t > T.peace && t < T.out) {
     ctx.save();
     ctx.globalAlpha = 0.8;
