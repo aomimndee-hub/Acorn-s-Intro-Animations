@@ -62,7 +62,7 @@ export function sparkle(rgb = "255,220,245", size = 512) {
  * One feather pointing up: a curved shaft with fine barbs on both sides, white
  * at the base and tinted toward the tip, with a few splits in the vane.
  */
-export function feather(seed, tip = "176,212,196", w = 120, h = 560) {
+export function feather(seed, tip = "176,212,196", w = 190, h = 560) {
   const c = makeCanvas(w, h);
   const x = c.getContext("2d");
   const r = rng(seed);
@@ -77,8 +77,8 @@ export function feather(seed, tip = "176,212,196", w = 120, h = 560) {
     for (let i = 0; i <= 30; i++) {
       const k = 0.08 + (i / 30) * 0.92;
       const [sx, sy] = shaft(k);
-      const width = w * 0.42 * Math.sin(Math.min(1, k * 1.25) * Math.PI * 0.62) * (side > 0 ? 0.85 : 1);
-      x.lineTo(sx + side * width, sy - width * 0.45);
+      const width = w * 0.46 * Math.sin(Math.min(1, k * 1.2) * Math.PI * 0.6) * (side > 0 ? 0.85 : 1);
+      x.lineTo(sx + side * width, sy - width * 0.4);
     }
     const [tx, ty] = shaft(1);
     x.lineTo(tx, ty);
@@ -209,19 +209,23 @@ export function moon(size = 900) {
   x.arc(R, R, R * 0.96, 0, TAU);
   x.clip();
   const g = x.createRadialGradient(R * 0.85, R * 0.8, 0, R, R, R);
-  g.addColorStop(0, "#f2fff4");
-  g.addColorStop(0.45, "#d7f6de");
-  g.addColorStop(0.85, "#f6c9e4");
-  g.addColorStop(1, "#ffa7d4");
+  g.addColorStop(0, "#fbffd6");
+  g.addColorStop(0.3, "#dcfbc8");
+  g.addColorStop(0.58, "#c4f0e2");
+  g.addColorStop(0.82, "#bfe2ff");
+  g.addColorStop(1, "#e9c4f2");
   x.fillStyle = g;
   x.fillRect(0, 0, size, size);
   const clouds = makeCanvas(size, size);
   const cx = clouds.getContext("2d");
-  for (let i = 0; i < 46; i++) {
+  // pastel weather: lemon and mint bands, sky-blue haze, a few pink clouds
+  const cols = ["255,236,140", "170,240,170", "140,205,255", "120,225,215", "246,140,200"];
+  for (let i = 0; i < 52; i++) {
     const px = r() * size;
-    const py = size * (0.3 + r() * 0.55);
+    const py = size * (0.15 + r() * 0.75);
     const rr = size * (0.04 + r() * 0.1);
-    cx.fillStyle = `rgba(${r() > 0.4 ? "246,120,190" : "200,140,220"},${0.18 + r() * 0.25})`;
+    const c = cols[i % 5 === 4 && r() < 0.6 ? 4 : Math.floor(r() * 4)];
+    cx.fillStyle = `rgba(${c},${0.18 + r() * 0.25})`;
     cx.beginPath();
     cx.ellipse(px, py, rr * 1.8, rr, 0, 0, TAU);
     cx.fill();
@@ -231,8 +235,8 @@ export function moon(size = 900) {
   // rim light
   const rim = x.createRadialGradient(R, R, R * 0.8, R, R, R);
   rim.addColorStop(0, "rgba(255,240,255,0)");
-  rim.addColorStop(0.9, "rgba(255,235,250,0.55)");
-  rim.addColorStop(1, "rgba(255,200,240,0)");
+  rim.addColorStop(0.9, "rgba(225,245,255,0.55)");
+  rim.addColorStop(1, "rgba(200,235,255,0)");
   x.fillStyle = rim;
   x.fillRect(0, 0, size, size);
   return c;
@@ -348,6 +352,36 @@ export function grain() {
   return c;
 }
 
+/**
+ * A lens aperture ghost: a soft hexagon with a brighter rim, as the blades of a
+ * camera iris print on bright light.
+ */
+export function hexGhost(rgb, size = 256) {
+  const c = makeCanvas(size, size);
+  const x = c.getContext("2d");
+  const R = size * 0.46;
+  const hex = (r) => {
+    x.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * TAU + Math.PI / 6;
+      x.lineTo(size / 2 + Math.cos(a) * r, size / 2 + Math.sin(a) * r);
+    }
+    x.closePath();
+  };
+  const g = x.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, R);
+  g.addColorStop(0, `rgba(${rgb},0.12)`);
+  g.addColorStop(0.75, `rgba(${rgb},0.28)`);
+  g.addColorStop(1, `rgba(${rgb},0.5)`);
+  hex(R);
+  x.fillStyle = g;
+  x.fill();
+  x.strokeStyle = `rgba(${rgb},0.7)`;
+  x.lineWidth = size * 0.02;
+  hex(R * 0.98);
+  x.stroke();
+  return blurred(c, size * 0.012);
+}
+
 export function buildArt() {
   const tips = ["176,212,196", "200,226,214", "230,200,220", "160,200,190"];
   const feathers = Array.from({ length: 6 }, (_, i) => feather(11 + i * 7, tips[i % tips.length]));
@@ -374,5 +408,6 @@ export function buildArt() {
     dustA: dust(1024, 3, 1400),
     dustB: dust(1024, 7, 500),
     grain: grain(),
+    hex: ["255,150,220", "160,255,210", "255,220,130", "150,200,255", "220,170,255"].map((c) => hexGhost(c)),
   };
 }

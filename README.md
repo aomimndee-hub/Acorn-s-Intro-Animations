@@ -81,14 +81,16 @@ The GM chooses the animation from the **Animation** menu in the popover.
   a grey flash and a fade to black. All drawings are generated in `src/sortilege/art.js`; the title text can
   be changed in the popover. Music: `public/audio/sortilege.mp3`.
   (ฉากเปิดไม่ใช้ token: ตัวอักษร glitch, ภาพลายเส้นโกธิกโทนซีเปีย, พลิกหน้ากระดาษเข้าห้องสมุดม่วง, ฉากชมพูม่วงกับนาฬิกาและดวงอาทิตย์, จบที่ชื่อ SORTILEGE)
-- **Star that doesn't Exist:** an original 43 s cutscene for one token, in deep maroon space with a pastel
-  moon, falling feathers, white crystal shards, pink sparkles and threads of gold and violet light. The token
-  wakes at 14.3 s and grows feathered wings while shards orbit it; at 23 s everything draws in, then a dotted
-  "star that is not there" flickers in the silence; on the drop (25.4 s) the token bursts into light and we
-  fly forward through feathers, shards and star dust, beat by beat. It ends on "Ascende verso lumen astria
-  nonexa" / "Journey toward the light of stars that were never meant to be" as the token rises into the light.
-  Code: `src/star/`, music `public/audio/star.mp3`.
-  (อนิเมชันออกแบบใหม่: อวกาศ ขนนก ดวงจันทร์ เศษคริสตัล token มีปีก แล้วจบด้วยข้อความภาษาละติน)
+- **Star that doesn't Exist:** a 43 s cutscene for one token, following the GM's storyboard. Feathers fall in
+  S-curves as a gold star lights up and a tilted lyric card slides in; a 3D space colony (an O'Neill cylinder
+  of buildings, domes, rings and mirrors, `src/star/colony.js`) drifts across from the left; a cut to the
+  pastel moon with feathers falling from it; black bars close in, a breath of silence, a white flash on the
+  drop (25.4 s); then the token floats in space before the moon among swirling feathers, turning pink
+  four-point stars, a slow gold star with hexagonal aperture ghosts, and effects on every beat. It ends on
+  "Ascende verso lumen astria nonexa" and the title "Star that doesn't Exist".
+  The lyric lines live in `LYRICS` in `src/star/scene.js`: they are timed to the vocal phrases, and the words
+  are stand-ins until the real lyrics are added. Music: `public/audio/star.mp3`.
+  (ตามสตอรี่บอร์ด: ขนนก, ยาน space colony 3D, ดวงจันทร์, แถบดำ+แฟลช, token ลอยในอวกาศ; เนื้อเพลงแก้ได้ที่ LYRICS)
   (อนิเมชันโทนน้ำเงิน-ขาว token 1 ตัว ชื่อ token ขึ้นตอนเปิด แล้วไปตามฉากใต้น้ำ ฝน ชายหาด สมอ ฟิล์ม และท้องฟ้า)
 
 To play All Out Attack, select 2–5 tokens: **the first is the lead and the last is the target**. Then press

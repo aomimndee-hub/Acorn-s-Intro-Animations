@@ -208,7 +208,14 @@ async function boot() {
   const [img] = await Promise.all([loadToken(payload.imageUrl, payload.mime), loadFonts(), waitForAudio()]);
   state.tokS = buildTokenSprites(img || fallbackToken());
   state.A = buildArt();
-  for (const t of [3, 10, 18, 24, 26, 32, 40]) render(ctx, state, t);
+  // the 3D space colony; a flat stand-in is drawn without WebGL
+  try {
+    const { createColony } = await import("./star/colony.js");
+    state.colony = createColony();
+  } catch {
+    state.colony = null;
+  }
+  for (const t of [3, 10, 14, 18, 24, 26, 32, 37, 40]) render(ctx, state, t);
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, state.W, state.H);
 
