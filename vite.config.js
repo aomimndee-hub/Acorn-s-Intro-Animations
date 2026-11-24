@@ -5,13 +5,14 @@ import { resolve } from "node:path";
 // the exact path through VITE_BASE; locally we default to the repo name.
 const base = process.env.VITE_BASE || "/Acorn-s-Intro-Animations/";
 
+// Owlbear Rodeo rejects a manifest whose description is over 128 characters.
 function manifest() {
   return {
     name: "Acorn's Intro Animations",
-    version: "1.7.0",
+    version: "1.7.1",
     manifest_version: 1,
     description:
-      "Cinematic token animations for the whole table: Break Through, All Out Attack, Anchor, Compass, Spica, Sortilege and Star that doesn't Exist.",
+      "Cinematic, music-synced cutscenes for your tokens, played for the whole table.",
     action: {
       title: "Intro Animations",
       icon: `${base}icon.svg`,
