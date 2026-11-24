@@ -41,6 +41,8 @@ export const T = {
   collide: 21.7,
   star: 22.22,
   film: 22.95,
+  fire: 30.1, // the harpoon drops in from above
+  hook: 30.9, // it catches the token
   anchor: 33.2,
   fall: 38.2,
   slit: 42.72,
@@ -50,13 +52,13 @@ export const T = {
 
 const FLASHES = [
   [T.sky, 0.35, 0.08], [T.rain, 0.3, 0.08], [T.emblem, 0.5, 0.1], [T.burst, 0.6, 0.08],
-  [T.collide, 0.45, 0.08], [T.film, 0.45, 0.1], [T.anchor, 0.55, 0.1], [T.fall, 0.5, 0.1],
+  [T.collide, 0.45, 0.08], [T.film, 0.45, 0.1], [T.anchor, 0.55, 0.1], [T.hook, 0.6, 0.12], [T.fall, 0.5, 0.1],
   [39.0, 0.9, 0.22],
 ];
 const SHAKES = [
   [T.sea, 0.6, 0.15], [T.sky, 1, 0.12], [T.split, 0.5, 0.1], [T.rain, 0.6, 0.12], [T.shore, 0.6, 0.12],
   [T.emblem, 0.8, 0.12], [T.burst, 1.4, 0.15], [T.collide, 1.2, 0.12], [T.film, 0.8, 0.12],
-  [T.anchor, 1.4, 0.18], [T.fall, 1.6, 0.18], [39.0, 0.8, 0.15],
+  [T.anchor, 1.4, 0.18], [T.hook, 1.8, 0.22], [T.fall, 1.6, 0.18], [39.0, 0.8, 0.15],
 ];
 
 function pulses(t, list) {
@@ -1239,6 +1241,140 @@ function shotStar(ctx, st, t) {
 }
 
 /** The long film-strip section: the token tumbles on the beat over a waveform. */
+// ---- the fall: guitar, towers, speed lines, then the harpoon yanks the token up -------------
+
+/** Scroll position of the towers (in pixels): fast up while falling, a hard stop, then fast down. */
+function fallScroll(t, H) {
+  const speed = (u) => {
+    if (u < T.hook - 0.02) return 3 + 3.5 * smooth(u, 23.4, 30.0);
+    if (u < T.hook + 0.1) return 6.5 * (1 - smooth(u, T.hook - 0.02, T.hook + 0.1));
+    const yank = -7.5 * smooth(u, T.hook + 0.1, T.hook + 0.5);
+    return u < T.hook + 0.5 ? yank : lerp(-7.5, -2.2, smooth(u, T.hook + 0.5, T.anchor));
+  };
+  let s = 0;
+  const step = 1 / 30;
+  const ramp = (u) => smooth(u, T.film, T.film + 0.35);
+  for (let u = T.film; u < t; u += step) s += speed(u) * ramp(u) * step * H;
+  return [s, speed(t) * ramp(t)];
+}
+
+function tower(ctx, st, x0, w, side, scroll, tint, alpha, seed) {
+  const { W, H, U } = st;
+  const Th = H * 0.9;
+  const rowH = H * 0.1;
+  const rows = 9;
+  const phase = ((scroll % Th) + Th) % Th;
+  const first = Math.floor(scroll / Th);
+  const inner = side < 0 ? x0 + w : x0; // the edge facing the sky
+  const win = new Path2D();
+  const ledge = new Path2D();
+  const balc = new Path2D();
+  for (let k = -1; k <= 2; k++) {
+    const id = first + k;
+    const y0 = k * Th - phase;
+    for (let r = 0; r < rows; r++) {
+      const y = y0 + r * rowH;
+      ledge.rect(x0, y, w, 1.6 * U);
+      if ((id * 9 + r + seed) % 3 === 0) balc.rect(side < 0 ? inner - w * 0.04 : inner - w * 0.0, y + rowH * 0.78, w * 0.04, rowH * 0.22);
+      for (let c = 0; c < 3; c++) {
+        if (hash(id * 131 + r * 17 + c * 5 + seed) < 0.2) continue;
+        const wx = x0 + w * (0.12 + c * 0.29);
+        win.rect(wx, y + rowH * 0.2, w * 0.2, rowH * 0.55);
+      }
+    }
+  }
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = tint;
+  ctx.fillRect(x0, 0, w, H);
+  ctx.fillStyle = WHITE;
+  ctx.fill(win);
+  ctx.globalAlpha = alpha * 0.55;
+  ctx.fill(ledge);
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = tint;
+  ctx.fill(balc);
+  // a darker edge on the sky side gives the tower some depth
+  ctx.fillStyle = "rgba(10,5,90,0.45)";
+  ctx.fillRect(side < 0 ? inner - w * 0.05 : inner, 0, w * 0.05, H);
+  ctx.restore();
+}
+
+function fallScene(ctx, st, t) {
+  const { W, H, U } = st;
+  const [scroll, v] = fallScroll(t, H);
+  const lt = t - T.film;
+  const hooked = t >= T.hook;
+
+  // far towers move slower, near towers faster
+  tower(ctx, st, W * 0.15, W * 0.11, -1, scroll * 0.55, "#7f86ff", 0.7, 3);
+  tower(ctx, st, W * 0.74, W * 0.11, 1, scroll * 0.55, "#7f86ff", 0.7, 8);
+  tower(ctx, st, 0, W * 0.17, -1, scroll, BLUE, 1, 1);
+  tower(ctx, st, W * 0.83, W * 0.17, 1, scroll, BLUE, 1, 6);
+
+  // speed lines: vertical streaks whose length follows the speed
+  const sp = Math.abs(v);
+  if (sp > 0.25) {
+    const blue = new Path2D();
+    const white = new Path2D();
+    const span = H * 1.6;
+    for (let i = 0; i < 90; i++) {
+      const f = 0.7 + hash(i * 7) * 0.8;
+      const x = W * (0.02 + hash(i * 3) * 0.96);
+      const y = ((((hash(i * 5) * span - scroll * f) % span) + span) % span) - H * 0.3;
+      const L = Math.min(sp, 7) * H * 0.07 * (0.5 + hash(i * 11));
+      const onTower = x < W * 0.17 || x > W * 0.83;
+      (onTower ? white : blue).rect(x, v > 0 ? y : y - L, (1.6 + hash(i * 13) * 2.6) * U, L);
+    }
+    ctx.save();
+    ctx.globalAlpha = clamp(sp / 2.5) * 0.85;
+    ctx.fillStyle = "#4a38ff";
+    ctx.fill(blue);
+    ctx.fillStyle = "#fff";
+    ctx.fill(white);
+    ctx.restore();
+  }
+
+  // the token: tumbles in the air while falling, then hangs from the harpoon
+  const fallY = H * 0.5 + Math.sin(lt * 1.9) * H * 0.02;
+  const hookW = smooth(t, T.hook, T.hook + 0.1);
+  // the yank starts gently and speeds up as the line takes the weight
+  const pull = Math.pow(prog(t, T.hook + 0.1, T.anchor), 1.7);
+  const tokY = hooked ? lerp(fallY, H * 0.0, pull) : fallY;
+  const tokX = W / 2 + Math.sin(lt * 1.3) * W * 0.02 * (1 - hookW);
+  const roll = lerp(Math.sin(lt * 2.1) * 0.45 - 0.1, Math.PI + Math.sin(t * 3) * 0.04 * (1 - pull), hookW);
+  const yaw = lerp(Math.sin(lt * 1.2) * 0.9, 0.2, hookW);
+  const grow = lerp(1, 1.35, smooth(t, T.hook + 1.2, T.anchor));
+  const size = H * 0.34 * lerp(1, 0.8, hookW) * grow;
+
+  // the harpoon drops in from above and catches the token
+  if (t >= T.fire) {
+    const arrive = easeInCubic(prog(t, T.fire, T.hook));
+    const ay = hooked ? tokY - H * 0.035 : lerp(-H * 0.4, fallY - H * 0.035, arrive);
+    if (st.three) {
+      st.three.hang(W, H, st.dpr3, { x: W / 2, y: ay, swing: Math.sin(t * 4) * 0.02 * (1 - hookW), yaw: 0.2, scale: 1.05 * grow });
+      ctx.drawImage(st.three.canvas, 0, 0, W, H);
+    } else {
+      chain(ctx, W / 2, -H * 0.3, W / 2, ay - H * 0.2, H * 0.028, BLUE);
+      drawAnchor(ctx, W / 2, ay, H * 0.2, 0, BLUE);
+    }
+  }
+  // a white outline keeps the blue token readable against the blue towers and anchor
+  for (const [ox, oy] of [[-2, 0], [2, 0], [0, -2], [0, 2]]) tok3(ctx, st.tok.white, tokX + ox * U, tokY + oy * U, size, roll, yaw);
+  tok3(ctx, st.tok.duo, tokX, tokY, size, roll, yaw);
+
+  // the guitar: held while falling, then it slips out of the token's hands
+  const gt = Math.max(0, t - T.hook);
+  if (st.three && gt < 1.2) {
+    const gs = size * 1.3;
+    st.three.guitar(W, H, st.dpr3, {
+      x: tokX - gs * 0.03 + gt * W * 0.12, y: tokY + gs * 0.09 + gt * gt * H * 1.6, size: gs,
+      yaw: yaw * 0.8 - 0.35 + gt * 2, roll: -roll - 0.95 + gt * 5, pitch: 0.45 + Math.sin(lt * 1.5) * 0.15,
+    });
+    ctx.drawImage(st.three.canvas, 0, 0, W, H);
+  }
+}
+
 function shotFilm(ctx, st, t) {
   const { W, H, U } = st;
   fill(ctx, W, H, WHITE);
@@ -1259,21 +1395,7 @@ function shotFilm(ctx, st, t) {
   ctx.translate(-W / 2, -H / 2);
 
   if (!inAnchor) {
-    waveform(ctx, strip * 1.25, W - strip * 1.25, H * 0.5, H * (0.13 + 0.09 * pulse), t, "#4a38ff");
-    // the token floats and turns slowly, holding the guitar
-    const x = W / 2 + Math.sin(lt * 0.5) * W * 0.03;
-    const y = H * 0.5 + Math.sin(lt * 0.8 + 0.6) * H * 0.03;
-    const yaw = Math.sin(lt * 0.42) * 0.95;
-    const roll = Math.sin(lt * 0.31) * 0.28 - 0.08;
-    const size = H * 0.36 * (1 + 0.015 * pulse);
-    tok3(ctx, st.tok.duo, x, y, size, roll, yaw);
-    if (st.three) {
-      st.three.guitar(W, H, st.dpr3, {
-        x: x - size * 0.04, y: y + size * 0.12, size: size * 1.3,
-        yaw: yaw * 0.8 - 0.35, roll: -roll - 0.95, pitch: 0.45 + Math.sin(lt * 0.5) * 0.12,
-      });
-      ctx.drawImage(st.three.canvas, 0, 0, W, H);
-    }
+    fallScene(ctx, st, t);
   } else {
     const at = t - T.anchor;
     const drop = easeOutCubic(prog(at, 0, 0.35));
@@ -1309,6 +1431,7 @@ function shotFilm(ctx, st, t) {
   }
   ctx.restore();
 
+  if (!inAnchor) return;
   // strips slide in from the sides
   ctx.save();
   ctx.translate(-(1 - slideIn) * strip * 1.4, 0);
