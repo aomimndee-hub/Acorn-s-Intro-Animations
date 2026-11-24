@@ -55,6 +55,12 @@ export const ANIMATIONS = [
     page: "sortilege.html",
     noToken: true,
   },
+  {
+    id: "star",
+    label: "Star that doesn't Exist",
+    description: "Feathers, crystal shards and a pastel moon in deep space; the token grows wings and flies toward a star that was never there (about 43 s).",
+    page: "star.html",
+  },
 ];
 
 // "slash" was the previous name of the two-token finisher.
@@ -115,6 +121,21 @@ export function assaultPayload(team, leadIndex, target, overrides = {}) {
     target: tokenInfo(target),
     caption: overrides.caption ?? settings.caption,
     accent: overrides.accent ?? settings.accent,
+    nonce: Math.random().toString(36).slice(2),
+  };
+}
+
+/** Payload for Star that doesn't Exist: one token and its name. */
+export function starPayload(item, overrides = {}) {
+  const settings = loadSettings();
+  return {
+    animation: "star",
+    itemId: item.id,
+    imageUrl: item.image?.url || "",
+    mime: item.image?.mime || "",
+    name: overrides.name ?? tokenName(item),
+    reveal: overrides.reveal ?? settings.reveal,
+    revealBy: overrides.revealBy || "",
     nonce: Math.random().toString(36).slice(2),
   };
 }

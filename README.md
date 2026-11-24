@@ -81,6 +81,14 @@ The GM chooses the animation from the **Animation** menu in the popover.
   a grey flash and a fade to black. All drawings are generated in `src/sortilege/art.js`; the title text can
   be changed in the popover. Music: `public/audio/sortilege.mp3`.
   (ฉากเปิดไม่ใช้ token: ตัวอักษร glitch, ภาพลายเส้นโกธิกโทนซีเปีย, พลิกหน้ากระดาษเข้าห้องสมุดม่วง, ฉากชมพูม่วงกับนาฬิกาและดวงอาทิตย์, จบที่ชื่อ SORTILEGE)
+- **Star that doesn't Exist:** an original 43 s cutscene for one token, in deep maroon space with a pastel
+  moon, falling feathers, white crystal shards, pink sparkles and threads of gold and violet light. The token
+  wakes at 14.3 s and grows feathered wings while shards orbit it; at 23 s everything draws in, then a dotted
+  "star that is not there" flickers in the silence; on the drop (25.4 s) the token bursts into light and we
+  fly forward through feathers, shards and star dust, beat by beat. It ends on "Ascende verso lumen astria
+  nonexa" / "Journey toward the light of stars that were never meant to be" as the token rises into the light.
+  Code: `src/star/`, music `public/audio/star.mp3`.
+  (อนิเมชันออกแบบใหม่: อวกาศ ขนนก ดวงจันทร์ เศษคริสตัล token มีปีก แล้วจบด้วยข้อความภาษาละติน)
   (อนิเมชันโทนน้ำเงิน-ขาว token 1 ตัว ชื่อ token ขึ้นตอนเปิด แล้วไปตามฉากใต้น้ำ ฝน ชายหาด สมอ ฟิล์ม และท้องฟ้า)
 
 To play All Out Attack, select 2–5 tokens: **the first is the lead and the last is the target**. Then press

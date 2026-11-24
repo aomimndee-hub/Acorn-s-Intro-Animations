@@ -1,6 +1,6 @@
 import OBR, { isImage } from "@owlbear-rodeo/sdk";
 import {
-  ANIMATIONS, CHANNEL, anchorPayload, animationById, assaultPayload, compassPayload, loadSettings, payloadFor, saveSettings, spicaPayload,
+  ANIMATIONS, CHANNEL, anchorPayload, animationById, assaultPayload, compassPayload, loadSettings, payloadFor, saveSettings, spicaPayload, starPayload,
   tokenName,
 } from "./shared.js";
 
@@ -35,7 +35,7 @@ function updateControls() {
   $("assaultFields").hidden = !assault;
   const spica = mode() === "spica";
   const sort = mode() === "sortilege";
-  $("subtitleField").hidden = anchor || spica || sort || mode() === "compass";
+  $("subtitleField").hidden = anchor || spica || sort || mode() === "compass" || mode() === "star";
   $("titleField").hidden = !(anchor || spica || sort);
   // no token for the Sortilege opening: hide the token-only fields
   $("preview").hidden = sort;
@@ -208,6 +208,16 @@ async function play(destination) {
     return;
   }
   if (!current) return;
+  if (mode() === "star") {
+    const settings = saveSettings({ reveal: $("reveal").checked });
+    const payload = starPayload(current, {
+      name: $("name").value.trim() || tokenName(current),
+      reveal: destination === "ALL" && settings.reveal,
+      revealBy: OBR.player.id,
+    });
+    await OBR.broadcast.sendMessage(CHANNEL, payload, { destination });
+    return;
+  }
   if (mode() === "spica") {
     const settings = saveSettings({ spicaTitle: $("title").value.trim() || "Spica", reveal: $("reveal").checked });
     const payload = spicaPayload(current, {
