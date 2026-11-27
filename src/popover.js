@@ -52,7 +52,7 @@ function updateControls() {
   $("hint").innerHTML = assault
     ? "Tip: select 2–5 tokens. <b>First = lead, last = target.</b> Click any card to replace it with the selected token."
     : `Tip: you can also right-click a token → <b>${animationById(mode()).label}</b>.`;
-  const ready = assault ? team.some(Boolean) && !!target : animationById(mode()).noToken || !!current;
+  const ready = animationById(mode()).maintenance ? false : assault ? team.some(Boolean) && !!target : animationById(mode()).noToken || !!current;
   $("play").disabled = $("preview-btn").disabled = !ready;
 }
 
@@ -186,6 +186,7 @@ async function refreshSelection() {
 }
 
 async function play(destination) {
+  if (animationById(mode()).maintenance) return;
   if (mode() === "assault") {
     if (!target || !team.some(Boolean)) return;
     const settings = saveSettings({
@@ -281,8 +282,13 @@ OBR.onReady(async () => {
 
   const s = loadSettings();
   buildCards();
-  for (const a of ANIMATIONS) $("animation").add(new Option(a.label, a.id));
-  $("animation").value = animationById(s.animation).id;
+  for (const a of ANIMATIONS) {
+    const o = new Option(a.maintenance ? `${a.label} (under maintenance)` : a.label, a.id);
+    o.disabled = !!a.maintenance;
+    $("animation").add(o);
+  }
+  const saved = animationById(s.animation);
+  $("animation").value = saved.maintenance ? ANIMATIONS.find((a) => !a.maintenance).id : saved.id;
   $("subtitle").value = s.subtitle;
   $("title").value = s.title;
   $("reveal").checked = s.reveal;

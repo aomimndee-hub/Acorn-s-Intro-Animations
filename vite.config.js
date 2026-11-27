@@ -9,7 +9,7 @@ const base = process.env.VITE_BASE || "/Acorn-s-Intro-Animations/";
 function manifest() {
   return {
     name: "Acorn's Intro Animations",
-    version: "1.7.1",
+    version: "1.8.0",
     manifest_version: 1,
     description:
       "Cinematic, music-synced cutscenes for your tokens, played for the whole table.",

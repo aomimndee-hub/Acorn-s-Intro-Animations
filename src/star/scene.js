@@ -8,10 +8,12 @@
 //                feathers drift down the right; a pink and gold star trail
 // 3   17-25.4    cut to the moon; feathers fall from it; black bars close in,
 //                a breath of silence, then a white flash on the drop
-// 4   25.4-43    the token floats in space before the moon (no wings): swirling feathers,
-//                turning pink four-point stars, a slow gold star, effects on the beat;
+// 4   25.4-43    flash, the bars snap open and the camera pulls back from the token
+//                (no wings): god rays and a turning star-chart medallion behind it,
+//                a burst of feathers, comet ribbons orbiting, pink four-point stars,
+//                a distant moon and gold star, shockwaves on every bar;
 //                "Ascende verso lumen astria nonexa", then "Star that doesn't Exist"
-import { TAU, clamp, easeInCubic, easeOutCubic, hash, lerp, prog, smooth } from "../cutscene/util.js";
+import { TAU, clamp, easeInCubic, easeOutCubic, easeOutExpo, hash, lerp, makeCanvas, prog, smooth } from "../cutscene/util.js";
 
 const BEAT = 0.5675;
 const BAR = BEAT * 4;
@@ -260,32 +262,32 @@ function featherSwirl(ctx, st, t, cx, cy, R, alpha, front) {
   }
 }
 
-/** Mint light strokes curling around the token like wind (the green strokes in the storyboard). */
-function windStrokes(ctx, st, t, cx, cy, R, alpha) {
-  const { U } = st;
-  if (alpha <= 0.01) return;
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.lineCap = "round";
-  for (let i = 0; i < 9; i++) {
-    const a0 = (i / 9) * TAU + t * (0.5 + hash(i) * 0.3) * (i % 2 ? 1 : -1);
-    const r = R * (1.1 + hash(i * 3) * 0.9);
-    const span = 0.35 + hash(i * 5) * 0.5;
-    const a = alpha * (0.35 + 0.4 * Math.sin(t * 1.7 + i) ** 2 + beatPulse(t, 0.15) * 0.3);
-    for (const [w, k] of [[6, 0.15], [2, 0.8]]) {
-      ctx.strokeStyle = `rgba(190,255,215,${a * k})`;
-      ctx.lineWidth = w * U;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, r * 1.3, r * 0.55, -0.25, a0, a0 + span);
-      ctx.stroke();
-    }
-  }
-  ctx.restore();
-}
-
 // ---- the lyric card ------------------------------------------------------------------------------
 
-/** A tilted card of pale paper with a dark outline; the line types itself on. */
+/** Draws the card (dark glass, light rim) and its line, centred on the origin. */
+function cardFace(ctx, st, t, w, h) {
+  const { U } = st;
+  const g = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+  g.addColorStop(0, "rgba(14,4,16,0.62)");
+  g.addColorStop(1, "rgba(30,8,30,0.5)");
+  ctx.fillStyle = g;
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.strokeStyle = "rgba(255,225,245,0.75)";
+  ctx.lineWidth = 2 * U;
+  ctx.strokeRect(-w / 2, -h / 2, w, h);
+  ctx.strokeStyle = "rgba(255,225,245,0.25)";
+  ctx.lineWidth = 1 * U;
+  ctx.strokeRect(-w / 2 + 6 * U, -h / 2 + 6 * U, w - 12 * U, h - 12 * U);
+  const L = lyricAt(t);
+  if (L) {
+    const n = Math.floor(clamp(prog(t, L.t0, L.t0 + Math.min(1.2, (L.t1 - L.t0) * 0.6))) * L.s.length);
+    const a = 1 - smooth(t, L.t1, L.t1 + 0.35);
+    const size = fitSize(ctx, L.s, h * 0.46, w * 0.9, SERIF, 600, true);
+    text(ctx, L.s.slice(0, n), 0, 0, size, { italic: true, weight: 600, color: "#fff4fb", glow: "rgba(255,170,220,0.6)", alpha: a });
+  }
+}
+
+/** A flat card, tilted by `rot` and offset by `slide`. */
 function lyricCard(ctx, st, t, cx, cy, w, h, rot, slide, show) {
   const { U } = st;
   if (show <= 0.01) return;
@@ -293,27 +295,50 @@ function lyricCard(ctx, st, t, cx, cy, w, h, rot, slide, show) {
   ctx.translate(cx + slide[0], cy + slide[1]);
   ctx.rotate(rot);
   ctx.globalAlpha = show;
-  // shadow and card
-  ctx.fillStyle = "rgba(20,0,16,0.35)";
-  ctx.fillRect(-w / 2 + 6 * U, -h / 2 + 8 * U, w, h);
-  const g = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
-  g.addColorStop(0, "rgba(255,246,252,0.94)");
-  g.addColorStop(1, "rgba(246,226,244,0.94)");
-  ctx.fillStyle = g;
-  ctx.fillRect(-w / 2, -h / 2, w, h);
-  ctx.strokeStyle = "#2a0b22";
-  ctx.lineWidth = 3 * U;
-  ctx.strokeRect(-w / 2, -h / 2, w, h);
-  ctx.strokeStyle = "rgba(42,11,34,0.35)";
-  ctx.lineWidth = 1 * U;
-  ctx.strokeRect(-w / 2 + 7 * U, -h / 2 + 7 * U, w - 14 * U, h - 14 * U);
-  // the line, typed on
-  const L = lyricAt(t);
-  if (L) {
-    const n = Math.floor(clamp(prog(t, L.t0, L.t0 + Math.min(1.2, (L.t1 - L.t0) * 0.6))) * L.s.length);
-    const a = 1 - smooth(t, L.t1, L.t1 + 0.35);
-    const size = fitSize(ctx, L.s, h * 0.46, w * 0.9, SERIF, 600, true);
-    text(ctx, L.s.slice(0, n), 0, 0, size, { italic: true, weight: 600, color: "#2a0b22", glow: null, alpha: a });
+  ctx.fillStyle = "rgba(0,0,0,0.25)";
+  ctx.fillRect(-w / 2 + 5 * U, -h / 2 + 7 * U, w, h);
+  cardFace(ctx, st, t, w, h);
+  ctx.restore();
+}
+
+/**
+ * A card standing on a wall that runs into the screen: its top and bottom
+ * edges converge on a vanishing point at the centre of the frame. The card is
+ * drawn flat into a buffer, then mapped onto the plane in thin vertical slices.
+ * `z0` pushes the whole card back along the wall (used to slide it in).
+ */
+function perspectiveCard(ctx, st, t, show, z0) {
+  const { W, H } = st;
+  if (show <= 0.01) return;
+  const cw = 1300;
+  const ch = 220;
+  if (!st._card) st._card = Object.assign(document.createElement("canvas"), { width: cw, height: ch });
+  const c = st._card.getContext("2d");
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.clearRect(0, 0, cw, ch);
+  c.translate(cw / 2, ch / 2);
+  cardFace(c, { ...st, U: 1.6 }, t, cw - 8, ch - 8);
+  // the wall: x = X0 + Z * k, from y = Y0 to Y1, depth Z from z0 to z0 + D
+  const cx = W / 2;
+  const cy = H / 2;
+  const f = W * 0.75;
+  const X0 = -W * 0.42;
+  const k = 0.18;
+  const Y0 = H * 0.08;
+  const Y1 = Y0 + H * 0.24;
+  const D = f * 1.55;
+  const proj = (X, Y, Z) => [cx + (X * f) / (f + Z), cy + (Y * f) / (f + Z)];
+  const N = 70;
+  ctx.save();
+  ctx.globalAlpha = show;
+  for (let i = 0; i < N; i++) {
+    const za = z0 + (D * i) / N;
+    const zb = z0 + (D * (i + 1)) / N;
+    const [xa, ya0] = proj(X0 + za * k, Y0, za);
+    const [, ya1] = proj(X0 + za * k, Y1, za);
+    const [xb] = proj(X0 + zb * k, Y0, zb);
+    if (xb - xa < 0.2) continue;
+    ctx.drawImage(st._card, (cw * i) / N, 0, cw / N + 0.6, ch, xa, ya0, xb - xa + 0.6, ya1 - ya0);
   }
   ctx.restore();
 }
@@ -361,11 +386,9 @@ function sceneFeathers(ctx, st, t) {
   hexGhosts(ctx, st, t, W * 0.13, H * 0.3, light * 0.8);
   stars4(ctx, st, t, 10, smooth(t, 0.8, 2.5));
   featherFall(ctx, st, t + 6, 9, smooth(t, 0.6, 2.2), { xMin: 0.45, xMax: 0.85, speed: 0.07, size: 0.2 });
-  // the card slides in along its own slant
-  const slide = 1 - easeOutCubic(prog(t, 1.15, 2.6));
-  const rot = -0.42;
-  lyricCard(ctx, st, t, W * 0.34, H * 0.66, W * 0.44, H * 0.15, rot + Math.sin(t * 0.4) * 0.01,
-    [-Math.cos(rot) * W * 0.6 * slide, -Math.sin(rot) * W * 0.6 * slide + H * 0.15 * slide], smooth(t, 1.1, 1.5) * (1 - smooth(t, T.colony - 0.3, T.colony)));
+  // the card slides out of the vanishing point along its wall
+  const zIn = (1 - easeOutCubic(prog(t, 1.1, 2.7))) * W * 2.2 + Math.sin(t * 0.5) * W * 0.01;
+  perspectiveCard(ctx, st, t, smooth(t, 1.1, 1.6) * (1 - smooth(t, T.colony - 0.3, T.colony)), zIn);
   // first light: fade in from black
   const black = 1 - smooth(t, T.open, T.open + 1.2);
   if (black > 0.01) {
@@ -445,52 +468,261 @@ function sceneMoon(ctx, st, t) {
   }
 }
 
+/** Light shafts fanning out from behind the token; two layers turning against each other. */
+function godRays(ctx, st, t, cx, cy, R, amount) {
+  if (amount <= 0.01) return;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (const [n, spin, rgb, a, wd] of [[12, 0.07, "255,190,235", 0.5, 0.09], [9, -0.045, "255,226,160", 0.38, 0.06]]) {
+    const g = ctx.createRadialGradient(cx, cy, R * 0.05, cx, cy, R);
+    g.addColorStop(0, `rgba(${rgb},${a * amount})`);
+    g.addColorStop(0.35, `rgba(${rgb},${a * amount * 0.35})`);
+    g.addColorStop(1, `rgba(${rgb},0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * TAU + t * spin + hash(i * 7 + n) * 0.3;
+      const w = wd * (0.5 + hash(i * 3 + n));
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, R, ang - w, ang + w);
+      ctx.closePath();
+    }
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** A star-chart medallion behind the token: rings, ticks, an eight-point star, turning slowly. */
+function medallion(ctx, st, t, cx, cy, R, alpha) {
+  const { U } = st;
+  if (alpha <= 0.01) return;
+  const glow = 1 + barPulse(t, 0.3) * 0.8;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(1, 0.94);
+  ctx.globalCompositeOperation = "lighter";
+  ctx.lineCap = "round";
+  const pass = (lw, a) => {
+    ctx.lineWidth = lw * U;
+    ctx.strokeStyle = `rgba(255,226,190,${clamp(a * alpha * glow)})`;
+    // rings
+    ctx.beginPath();
+    for (const k of [1, 0.9, 0.62]) {
+      ctx.moveTo(R * k, 0);
+      ctx.arc(0, 0, R * k, 0, TAU);
+    }
+    ctx.stroke();
+    // ticks between the two outer rings, turning one way
+    ctx.save();
+    ctx.rotate(t * 0.05);
+    ctx.beginPath();
+    for (let i = 0; i < 72; i++) {
+      const ang = (i / 72) * TAU;
+      const k0 = i % 6 ? 0.94 : 0.9;
+      ctx.moveTo(Math.cos(ang) * R * k0, Math.sin(ang) * R * k0);
+      ctx.lineTo(Math.cos(ang) * R, Math.sin(ang) * R);
+    }
+    ctx.stroke();
+    ctx.restore();
+    // an eight-point star turning the other way
+    ctx.save();
+    ctx.rotate(-t * 0.08);
+    ctx.beginPath();
+    for (let i = 0; i <= 16; i++) {
+      const ang = (i / 16) * TAU;
+      const r = i % 2 ? R * 0.3 : i % 4 ? R * 0.62 : R * 0.86;
+      ctx.lineTo(Math.cos(ang) * r, Math.sin(ang) * r);
+    }
+    ctx.stroke();
+    ctx.restore();
+  };
+  pass(7, 0.12);
+  pass(1.6, 0.6);
+  // little stars sitting on the inner ring
+  ctx.rotate(-t * 0.08);
+  for (let i = 0; i < 4; i++) {
+    const ang = (i / 4) * TAU + Math.PI / 4;
+    sprite(ctx, st.A.sparkleGold, Math.cos(ang) * R * 0.62, Math.sin(ang) * R * 0.62, R * 0.28, R * 0.28, alpha * (0.6 + 0.4 * Math.sin(t * 3 + i)), 0);
+  }
+  ctx.restore();
+}
+
+/** Comet ribbons orbiting the token: a bright head with a tapering pastel tail. */
+const RIBBONS = [
+  ["190,255,220", 1.25, 0.42, -0.35, 0.9], ["255,180,230", 1.45, 0.5, 0.25, -0.7],
+  ["255,225,150", 1.1, 0.36, 0.6, 1.1], ["170,210,255", 1.6, 0.46, -0.1, -0.55],
+  ["255,200,240", 1.35, 0.3, -0.7, 0.75],
+];
+function ribbons(ctx, st, t, cx, cy, R, alpha, front) {
+  const { U, A } = st;
+  if (alpha <= 0.01) return;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.lineCap = "round";
+  const kick = beatPulse(t, 0.15);
+  RIBBONS.forEach(([rgb, rx, ry, tilt, speed], i) => {
+    const head = t * speed + i * 1.7;
+    const pt = (a) => {
+      const x = Math.cos(a) * R * rx;
+      const y = Math.sin(a) * R * ry;
+      return [cx + x * Math.cos(tilt) - y * Math.sin(tilt), cy + x * Math.sin(tilt) + y * Math.cos(tilt)];
+    };
+    const inFront = Math.sin(head) * Math.sign(speed) > 0;
+    if (inFront !== front) return;
+    const len = 1.6;
+    const CH = 5;
+    for (let c = 0; c < CH; c++) {
+      const k0 = c / CH;
+      const k1 = (c + 1) / CH;
+      const a = alpha * Math.pow(1 - k0, 1.6) * (0.7 + kick * 0.3);
+      ctx.strokeStyle = `rgba(${rgb},${a})`;
+      ctx.lineWidth = (1 - k0) * 5 * U + 0.6 * U;
+      ctx.beginPath();
+      for (let s = 0; s <= 6; s++) {
+        const [x, y] = pt(head - Math.sign(speed) * len * lerp(k0, k1, s / 6));
+        s ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      }
+      ctx.stroke();
+    }
+    const [hx, hy] = pt(head);
+    sprite(ctx, A.sparkle, hx, hy, R * 0.32 * (1 + kick * 0.5), R * 0.32 * (1 + kick * 0.5), alpha, t);
+  });
+  ctx.restore();
+}
+
+/** At the drop, feathers burst out from the token, slow down, then drift. */
+function featherBurst(ctx, st, t, cx, cy, R) {
+  const { A } = st;
+  const lt = t - DROP;
+  if (lt < 0 || lt > 4.5) return;
+  const fade = 1 - smooth(lt, 2.5, 4.5);
+  for (let i = 0; i < 26; i++) {
+    const img = A.feathers[i % A.feathers.length];
+    const ang = (i / 26) * TAU + hash(i * 5) * 0.4;
+    const dist = R * (1.2 + hash(i * 3) * 2.2) * (1 - Math.exp(-lt * 3.2));
+    const x = cx + Math.cos(ang) * dist * 1.5;
+    const y = cy + Math.sin(ang) * dist + lt * lt * R * 0.05;
+    const h = R * (0.3 + hash(i * 7) * 0.35);
+    const w = (img.width / img.height) * h;
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.translate(x, y);
+    ctx.rotate(ang + Math.PI / 2 + lt * (hash(i) - 0.5) * 3);
+    ctx.scale(0.6 + 0.4 * Math.cos(lt * 2 + i), 1);
+    ctx.drawImage(img, -w / 2, -h / 2, w, h);
+    ctx.restore();
+  }
+}
+
+/** Big out-of-focus feathers drifting across the very front of the frame. */
+function bokehFeathers(ctx, st, t, alpha) {
+  const { W, H, A } = st;
+  for (let i = 0; i < 3; i++) {
+    const img = A.feathersBlur[i];
+    const period = 9 + i * 2.5;
+    const k = (((t - DROP) / period + i * 0.37) % 1 + 1) % 1;
+    const x = W * (i === 1 ? 0.92 : i === 2 ? 0.2 : 0.06) + Math.sin(t * 0.6 + i) * W * 0.04;
+    const y = lerp(-H * 0.4, H * 1.4, k);
+    const h = H * (0.62 + i * 0.12);
+    const w = (img.width / img.height) * h;
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.4;
+    ctx.globalCompositeOperation = "lighter";
+    ctx.translate(x, y);
+    ctx.rotate(0.8 + Math.sin(t * 0.7 + i * 2) * 0.5);
+    ctx.drawImage(img, -w / 2, -h / 2, w, h);
+    ctx.restore();
+  }
+}
+
+/** A pink rim of light around the token's silhouette (built once). */
+function tokenRim(st) {
+  const K = st.tokS;
+  if (st._rim || !K) return st._rim;
+  const S = K.halo.width;
+  const c = makeCanvas(S, S);
+  const x = c.getContext("2d");
+  x.drawImage(K.halo, 0, 0);
+  x.globalCompositeOperation = "source-in";
+  x.fillStyle = "#ff9fdc";
+  x.fillRect(0, 0, S, S);
+  st._rim = c;
+  return c;
+}
+
 /** 4: the token floats in space, with everything moving on the beat. */
 function sceneFloat(ctx, st, t) {
   const { W, H, U, A } = st;
   const lt = t - DROP;
   const bp = beatPulse(t);
   const bars = barPulse(t);
+  const burst = Math.exp(-lt / 0.9);
   const rise = t >= T.title ? easeInCubic(prog(t, T.title + 0.6, T.out + 0.6)) : 0;
   space(ctx, st, t, 2 + lt * 0.15);
-  moon(ctx, st, t, W * 0.5, H * 0.08, H * (0.62 + bars * 0.02), 1);
-  // the gold star in the upper right turns slowly, beams sweeping with it
+  // a vignette pulls the eye to the centre
+  const v = ctx.createRadialGradient(W / 2, H * 0.55, H * 0.2, W / 2, H * 0.55, W * 0.75);
+  v.addColorStop(0, "rgba(0,0,0,0)");
+  v.addColorStop(1, "rgba(6,0,8,0.6)");
+  ctx.fillStyle = v;
+  ctx.fillRect(-W, -H, W * 3, H * 3);
+  // far away: the moon at the upper left, the gold star at the upper right
+  moon(ctx, st, t, W * 0.1, H * 0.1, H * (0.36 + bars * 0.01), 0.75);
   const sr = t * 0.06;
-  goldStar(ctx, st, t, W * 0.86, H * 0.2, H * (0.55 + bars * 0.12), 1, [[0.25 + sr, W * 0.6, 2.2], [1.95 + sr, H * 1.1, 3.2]]);
-  hexGhosts(ctx, st, t, W * 0.86, H * 0.2, 0.9 + bars * 0.3);
-  stars4(ctx, st, t, 16, 1, 7);
-  // light bursts out from the token on each bar
-  const cx = W * 0.5 + Math.sin(t * 0.45) * W * 0.05;
+  goldStar(ctx, st, t, W * 0.88, H * 0.16, H * (0.4 + bars * 0.1), 1, [[0.25 + sr, W * 0.5, 1.8], [1.95 + sr, H * 0.9, 2.4]]);
+  hexGhosts(ctx, st, t, W * 0.88, H * 0.16, 0.35 + bars * 0.2);
+  stars4(ctx, st, t, 14, 1, 7);
+
   const lift = smooth(t, T.latin - 0.6, T.latin + 0.4) * H * 0.1;
-  const cy = H * 0.56 + Math.sin(t * 0.7) * H * 0.035 - lift - rise * H * 0.8;
-  const h = H * 0.3 * (1 + bars * 0.04) * (1 - smooth(t, T.latin - 0.6, T.latin + 0.4) * 0.15);
-  sprite(ctx, A.glowW, cx, cy, H * (0.9 + bars * 0.9), H * (0.9 + bars * 0.9), 0.25 + bars * 0.35);
-  windStrokes(ctx, st, t, cx, cy, h, 1);
-  featherSwirl(ctx, st, t, cx, cy, h * 1.3, 1, false);
+  const cx = W * 0.5 + Math.sin(t * 0.45) * W * 0.04;
+  const cy = H * 0.54 + Math.sin(t * 0.7) * H * 0.03 - lift - rise * H * 0.8;
+  const h = H * 0.34 * (1 + bars * 0.04) * (1 - smooth(t, T.latin - 0.6, T.latin + 0.4) * 0.15);
+  const appear = easeOutCubic(prog(t, DROP, DROP + 0.9));
+  // light behind the token: glow, rays, medallion
+  sprite(ctx, A.glowP, cx, cy, H * (1.5 + bars * 0.5), H * (1.5 + bars * 0.5), 0.35 + bars * 0.25);
+  sprite(ctx, A.glowW, cx, cy, H * (0.8 + burst * 1.5), H * (0.8 + burst * 1.5), 0.3 + burst * 0.7 + bars * 0.2);
+  godRays(ctx, st, t, cx, cy, H * (0.95 + burst * 0.6 + bars * 0.15), 0.4 + burst * 1.2 + bars * 0.5);
+  medallion(ctx, st, t, cx, cy, h * (0.82 + 0.25 * (1 - appear) + bars * 0.03), appear * (1 - rise));
+  // shockwave on every bar (and the drop itself)
+  const d = (((t - DROP) % BAR) + BAR) % BAR;
+  if (d < 1.1 && t < T.latin) {
+    const pr = easeOutExpo(d / 1.1);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (const [lw, a] of [[16, 0.12], [3, 0.6]]) {
+      ctx.strokeStyle = `rgba(255,214,242,${(1 - pr) * a})`;
+      ctx.lineWidth = lw * (1 - pr * 0.7) * U;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, h * (0.6 + pr * 2.6), h * (0.6 + pr * 2.6) * 0.78, 0, 0, TAU);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  ribbons(ctx, st, t, cx, cy, h, appear, false);
+  featherSwirl(ctx, st, t, cx, cy, h * 1.3, appear, false);
+  // the token, with a pink rim and its own white light fading out of the flash
+  const rim = tokenRim(st);
+  if (rim) {
+    const rs = h * st.tokS.haloScale * (1.05 + bp * 0.06);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = 0.55 + bars * 0.35;
+    ctx.drawImage(rim, cx - rs / 2, cy - rs / 2, rs, rs);
+    ctx.restore();
+  }
   hero(ctx, st, t, cx, cy, h, {
-    white: Math.exp(-lt / 0.5) * 1.2 + bp * 0.12 + rise,
-    rot: Math.sin(t * 0.5) * 0.08,
+    white: Math.exp(-lt / 0.7) * 1.3 + bp * 0.1 + rise,
+    rot: Math.sin(t * 0.5) * 0.06,
   });
-  featherSwirl(ctx, st, t, cx, cy, h * 1.3, 1, true);
-  // falling feathers in the foreground
-  featherFall(ctx, st, t, 6, 0.9, { xMin: 0, xMax: 1, speed: 0.09, size: 0.3, seed: 9 });
+  ribbons(ctx, st, t, cx, cy, h, appear, true);
+  featherSwirl(ctx, st, t, cx, cy, h * 1.3, appear, true);
+  featherBurst(ctx, st, t, cx, cy, h);
+  // falling feathers, then a few big blurred ones right in front of the lens
+  featherFall(ctx, st, t, 5, 0.85, { xMin: 0, xMax: 1, speed: 0.09, size: 0.24, seed: 9 });
+  bokehFeathers(ctx, st, t, 1 - rise);
   // the light the token rises into at the end
   if (t >= T.title) {
     const la = smooth(t, T.title, T.title + 1.5);
     sprite(ctx, A.glowW, W / 2, -H * 0.05, W * 1.3 * la, H * la, la * 0.7);
-  }
-  // soft ring on each bar
-  const d = (((t - DROP) % BAR) + BAR) % BAR;
-  if (d < 1.2 && t < T.latin) {
-    const pr = easeOutCubic(d / 1.2);
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    ctx.strokeStyle = `rgba(255,200,240,${(1 - pr) * 0.6})`;
-    ctx.lineWidth = (6 - 5 * pr) * U;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, W * 0.7 * pr, H * 0.6 * pr, 0, 0, TAU);
-    ctx.stroke();
-    ctx.restore();
   }
 }
 
@@ -501,7 +733,7 @@ function letterbox(ctx, st, t) {
   const { W, H } = st;
   let k = 0;
   if (t >= T.bars && t < DROP) k = 0.3 * easeOutCubic(prog(t, T.bars, T.hush)) + 0.16 * easeInCubic(prog(t, T.hush, DROP));
-  else if (t >= DROP) k = lerp(0.46, 0.085, easeOutCubic(prog(t, DROP + 0.25, DROP + 1.6)));
+  else if (t >= DROP) k = lerp(0.46, 0.085, easeOutExpo(prog(t, DROP + 0.05, DROP + 0.75)));
   if (k <= 0.001) return;
   const tilt = t < DROP ? -0.025 : -0.012;
   ctx.save();
@@ -510,6 +742,17 @@ function letterbox(ctx, st, t) {
   ctx.fillStyle = "#000";
   ctx.fillRect(-W, -H * 0.5 - H, W * 2, H + H * k);
   ctx.fillRect(-W, H * 0.5 - H * k, W * 2, H + H * k);
+  // the last instant before the drop: light leaks through the slit
+  const leak = t < DROP ? smooth(t, DROP - 0.25, DROP) ** 2 : 0;
+  if (leak > 0.01) {
+    ctx.globalCompositeOperation = "lighter";
+    const g = ctx.createLinearGradient(0, -H * (0.5 - k), 0, H * (0.5 - k));
+    g.addColorStop(0, `rgba(255,220,245,${leak})`);
+    g.addColorStop(0.5, `rgba(255,255,255,${leak * 0.6})`);
+    g.addColorStop(1, `rgba(255,220,245,${leak})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(-W, -H * (0.5 - k), W * 2, H * (1 - 2 * k));
+  }
   ctx.restore();
 }
 
@@ -573,7 +816,8 @@ function camera(ctx, st, t) {
   const b = barPulse(t, 0.18);
   const f = Math.floor(t * 60);
   const shake = (b * 12 + beatPulse(t, 0.06) * 3) * U * (t < T.latin ? 1 : 0.3);
-  const zoom = 1.06 + 0.02 * Math.sin(t * 0.3) + b * 0.025;
+  const pull = t >= DROP ? 0.55 * (1 - easeOutCubic(prog(t, DROP, DROP + 1.6))) : 0;
+  const zoom = 1.06 + 0.02 * Math.sin(t * 0.3) + b * 0.025 + pull;
   ctx.translate(W / 2 + Math.sin(t * 0.37) * W * 0.008 + (hash(f) - 0.5) * shake, H / 2 + Math.sin(t * 0.53) * H * 0.012 + (hash(f + 9) - 0.5) * shake);
   ctx.rotate(Math.sin(t * 0.21) * 0.015 + (barNo(t) % 2 ? 1 : -1) * b * 0.01);
   ctx.scale(zoom, zoom);
@@ -593,16 +837,23 @@ export function render(ctx, st, t) {
     else if (t < DROP) sceneMoon(ctx, st, t);
     else sceneFloat(ctx, st, t);
     ctx.restore();
-    letterbox(ctx, st, t);
-    words(ctx, st, t);
-    // white flash on the drop
+    // white flash on the drop, fading through pink
     if (t >= DROP) {
-      const f = Math.exp(-(t - DROP) / 0.4);
-      if (f > 0.01) {
-        ctx.fillStyle = `rgba(255,246,252,${f})`;
+      const f = Math.exp(-(t - DROP) / 0.22);
+      const p = Math.exp(-(t - DROP) / 0.7) * 0.35;
+      if (f + p > 0.01) {
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        ctx.fillStyle = `rgba(255,150,215,${clamp(p)})`;
         ctx.fillRect(0, 0, W, H);
+        ctx.globalCompositeOperation = "source-over";
+        ctx.fillStyle = `rgba(255,250,253,${clamp(f)})`;
+        ctx.fillRect(0, 0, W, H);
+        ctx.restore();
       }
     }
+    letterbox(ctx, st, t);
+    words(ctx, st, t);
     // white bloom, then black
     const bloom = smooth(t, T.out, T.out + 0.4) * (1 - smooth(t, T.out + 0.4, T.end));
     if (bloom > 0.01) {

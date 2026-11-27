@@ -393,6 +393,7 @@ export function buildArt() {
   wr.drawImage(wingL, 0, 0);
   return {
     feathers,
+    feathersBlur: feathers.slice(0, 3).map((f) => blurred(f, 7)),
     wingL,
     wingR,
     wingGlow: blurred(wingL, 26),

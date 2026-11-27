@@ -2,7 +2,9 @@ import OBR, { isImage } from "@owlbear-rodeo/sdk";
 import { BASE, CHANNEL, ID, MODAL_ID, anchorPayload, animationById, assaultPayload, compassPayload, payloadFor, spicaPayload, starPayload } from "./shared.js";
 
 async function openCutscene(data) {
-  const page = animationById(data?.animation).page;
+  const anim = animationById(data?.animation);
+  if (anim.maintenance) return; // switched off while it is being reworked
+  const page = anim.page;
   const url = `${BASE}${page}#${encodeURIComponent(JSON.stringify(data))}`;
   try {
     await OBR.modal.close(MODAL_ID);
@@ -107,7 +109,8 @@ OBR.onReady(() => {
   });
 
   // GM-only right-click entry for 2 to 5 selected image tokens.
-  OBR.contextMenu.create({
+  // All Out Attack is under maintenance, so its entry is only added when it is switched back on.
+  if (!animationById("assault").maintenance) OBR.contextMenu.create({
     id: `${ID}/context-menu-assault`,
     icons: [
       {

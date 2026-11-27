@@ -27,8 +27,10 @@ export const ANIMATIONS = [
   {
     id: "assault",
     label: "All Out Attack",
-    description: "Up to 4 tokens appear in glass, rush 1 target in black silhouette, and the lead lands (about 16 s).",
+    description: "Under maintenance: being reworked, so it can't be played for now.",
     page: "finisher.html",
+    // Switched off until the rework: hidden from play, no context menu, ignored if broadcast.
+    maintenance: true,
   },
   {
     id: "anchor",
@@ -58,7 +60,7 @@ export const ANIMATIONS = [
   {
     id: "star",
     label: "Star that doesn't Exist",
-    description: "Feathers, crystal shards and a pastel moon in deep space; the token grows wings and flies toward a star that was never there (about 43 s).",
+    description: "Feathers, crystal shards and a pastel moon in deep space; the token floats in starlight toward a star that was never there (about 43 s).",
     page: "star.html",
   },
 ];

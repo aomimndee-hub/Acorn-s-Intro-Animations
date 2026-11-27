@@ -43,7 +43,7 @@ The GM chooses the animation from the **Animation** menu in the popover.
 (GM เลือกอนิเมชันจากเมนู **Animation** ในหน้าต่างของ Extension)
 
 - **Break Through:** the original one-token crystal cutscene, synced to music.
-- **All Out Attack:** 1–4 player tokens appear in panes of glass, the glass shatters, and the team rushes
+- **All Out Attack** *(under maintenance: switched off while it is being reworked)***:** 1–4 player tokens appear in panes of glass, the glass shatters, and the team rushes
   1 target in black silhouette. The lead then lands, rises into a pose, and ends on a comic-style card.
   Every cue follows `public/audio/finisher.mp3`.
   (ฝั่งผู้เล่น 1–4 ตัวเปิดตัวในกระจก พุ่งโจมตีเป้าหมาย 1 ตัวเป็นเงาดำ แล้วตัวหลักลงมายืนตอนจบ)
@@ -82,17 +82,19 @@ The GM chooses the animation from the **Animation** menu in the popover.
   be changed in the popover. Music: `public/audio/sortilege.mp3`.
   (ฉากเปิดไม่ใช้ token: ตัวอักษร glitch, ภาพลายเส้นโกธิกโทนซีเปีย, พลิกหน้ากระดาษเข้าห้องสมุดม่วง, ฉากชมพูม่วงกับนาฬิกาและดวงอาทิตย์, จบที่ชื่อ SORTILEGE)
 - **Star that doesn't Exist:** a 43 s cutscene for one token, following the GM's storyboard. Feathers fall in
-  S-curves as a gold star lights up and a tilted lyric card slides in; a 3D space colony (an O'Neill cylinder
+  S-curves as a gold star lights up and a dark glass lyric card slides out of the vanishing point in perspective; a 3D space colony (an O'Neill cylinder
   of buildings, domes, rings and mirrors, `src/star/colony.js`) drifts across from the left; a cut to the
   pastel moon with feathers falling from it; black bars close in, a breath of silence, a white flash on the
-  drop (25.4 s); then the token floats in space before the moon among swirling feathers, turning pink
-  four-point stars, a slow gold star with hexagonal aperture ghosts, and effects on every beat. It ends on
+  drop (25.4 s) as the bars snap open and the camera pulls back from the token; it floats before god rays
+  and a turning star-chart medallion, feathers burst out and swirl, comet ribbons orbit it, a distant moon
+  and gold star (with hexagonal aperture ghosts) sit behind, and a shockwave rings out on every bar. It ends on
   "Ascende verso lumen astria nonexa" and the title "Star that doesn't Exist".
   The lyric lines live in `LYRICS` in `src/star/scene.js`: they are timed to the vocal phrases, and the words
   are stand-ins until the real lyrics are added. Music: `public/audio/star.mp3`.
   (ตามสตอรี่บอร์ด: ขนนก, ยาน space colony 3D, ดวงจันทร์, แถบดำ+แฟลช, token ลอยในอวกาศ; เนื้อเพลงแก้ได้ที่ LYRICS)
   (อนิเมชันโทนน้ำเงิน-ขาว token 1 ตัว ชื่อ token ขึ้นตอนเปิด แล้วไปตามฉากใต้น้ำ ฝน ชายหาด สมอ ฟิล์ม และท้องฟ้า)
 
+*(All Out Attack is under maintenance right now; this section applies once it is back.)*
 To play All Out Attack, select 2–5 tokens: **the first is the lead and the last is the target**. Then press
 **▶ Play for everyone** or right-click → **All Out Attack**. In the popover, click a card to put the selected
 token there, and press **Lead** to choose the main character. Transparent PNG tokens give the best silhouettes.
