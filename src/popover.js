@@ -1,6 +1,6 @@
 import OBR, { isImage } from "@owlbear-rodeo/sdk";
 import {
-  ANIMATIONS, CHANNEL, anchorPayload, animationById, assaultPayload, compassPayload, loadSettings, payloadFor, saveSettings, spicaPayload, starPayload,
+  ANIMATIONS, CHANNEL, anchorPayload, animationById, assaultPayload, compassPayload, forsakenPayload, loadSettings, payloadFor, saveSettings, spicaPayload, starPayload,
   tokenName,
 } from "./shared.js";
 
@@ -35,7 +35,8 @@ function updateControls() {
   $("assaultFields").hidden = !assault;
   const spica = mode() === "spica";
   const sort = mode() === "sortilege";
-  $("subtitleField").hidden = anchor || spica || sort || mode() === "compass" || mode() === "star";
+  $("subtitleField").hidden = anchor || spica || sort || mode() === "compass" || mode() === "star" || mode() === "forsaken";
+  $("forsakenFields").hidden = mode() !== "forsaken";
   $("titleField").hidden = !(anchor || spica || sort);
   // no token for the Sortilege opening: hide the token-only fields
   $("preview").hidden = sort;
@@ -209,6 +210,22 @@ async function play(destination) {
     return;
   }
   if (!current) return;
+  if (mode() === "forsaken") {
+    const settings = saveSettings({
+      reveal: $("reveal").checked,
+      forsakenRole: $("forsakenRole").value,
+      forsakenDisplay: $("forsakenDisplay").value,
+    });
+    const payload = forsakenPayload(current, {
+      name: $("name").value.trim() || tokenName(current),
+      role: settings.forsakenRole,
+      display: settings.forsakenDisplay,
+      reveal: destination === "ALL" && settings.reveal,
+      revealBy: OBR.player.id,
+    });
+    await OBR.broadcast.sendMessage(CHANNEL, payload, { destination });
+    return;
+  }
   if (mode() === "star") {
     const settings = saveSettings({ reveal: $("reveal").checked });
     const payload = starPayload(current, {
@@ -292,6 +309,11 @@ OBR.onReady(async () => {
   $("subtitle").value = s.subtitle;
   $("title").value = s.title;
   $("reveal").checked = s.reveal;
+  $("forsakenRole").value = s.forsakenRole;
+  $("forsakenDisplay").value = s.forsakenDisplay;
+  for (const id of ["forsakenRole", "forsakenDisplay"]) {
+    $(id).addEventListener("change", () => saveSettings({ [id]: $(id).value }));
+  }
   $("caption").value = s.caption;
   $("accent").value = s.accent;
   $("animation").addEventListener("change", () => {

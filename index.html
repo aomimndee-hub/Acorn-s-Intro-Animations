@@ -42,6 +42,22 @@
             <span>Title card</span>
             <input id="title" type="text" maxlength="24" placeholder="ANCHOR" />
           </label>
+          <div id="forsakenFields" class="stack" hidden>
+            <label class="field">
+              <span>Player's role</span>
+              <select id="forsakenRole">
+                <option value="infected">The infected one (in Rochas's place)</option>
+                <option value="called">The one Nosoi calls at the end</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Show the player as</span>
+              <select id="forsakenDisplay">
+                <option value="character">A Roblox character (with name tag)</option>
+                <option value="token">The token image</option>
+              </select>
+            </label>
+          </div>
           <label class="check">
             <input id="reveal" type="checkbox" />
             <span>Make the token visible on the map when the intro ends</span>

@@ -92,6 +92,13 @@ The GM chooses the animation from the **Animation** menu in the popover.
   The lyric lines live in `LYRICS` in `src/star/scene.js`: they are timed to the vocal phrases, and the words
   are stand-ins until the real lyrics are added. Music: `public/audio/star.mp3`.
   (ตามสตอรี่บอร์ด: ขนนก, ยาน space colony 3D, ดวงจันทร์, แถบดำ+แฟลช, token ลอยในอวกาศ; เนื้อเพลงแก้ได้ที่ LYRICS)
+- **Forsaken:** an 88 s Rochas313-style cutscene in a blocky 3D Roblox world (`src/forsaken/world.js`): R6
+  characters, a stud baseplate farm and the giant stepped tree Nosoi. Dialogue under the tree, then the music
+  hits: red and white posterize with pixel lyrics, rot spreading over the tree, a red chorus of tall serif
+  words before rays, inverted cyan flashes, dead trees in sepia, and the last question, "WHY HAVE YOU FORSAKEN
+  ME?". The GM picks the player's **role** (the infected one, in Rochas's place, or the one Nosoi calls at the
+  end) and how the player is **shown** (a Roblox character with a name tag, or the token image). Lyrics follow
+  the audio, timed in `src/forsaken/scene.js`. Music: `public/audio/forsaken.mp3` (FORSAKEN cover, 0:51–2:19).
   (อนิเมชันโทนน้ำเงิน-ขาว token 1 ตัว ชื่อ token ขึ้นตอนเปิด แล้วไปตามฉากใต้น้ำ ฝน ชายหาด สมอ ฟิล์ม และท้องฟ้า)
 
 *(All Out Attack is under maintenance right now; this section applies once it is back.)*

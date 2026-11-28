@@ -14,6 +14,8 @@ const DEFAULTS = {
   title: "ANCHOR",
   spicaTitle: "Spica",
   sortTitle: "Sortilege",
+  forsakenRole: "infected",
+  forsakenDisplay: "character",
 };
 
 /** Animations the GM can choose from. Add new ones here. */
@@ -62,6 +64,12 @@ export const ANIMATIONS = [
     label: "Star that doesn't Exist",
     description: "Feathers, crystal shards and a pastel moon in deep space; the token floats in starlight toward a star that was never there (about 43 s).",
     page: "star.html",
+  },
+  {
+    id: "forsaken",
+    label: "Forsaken",
+    description: "Rochas313-style 3D Roblox cutscene: the tree Nosoi spreads in red. The player is the infected one or the one it calls (about 88 s).",
+    page: "forsaken.html",
   },
 ];
 
@@ -183,6 +191,23 @@ export function anchorPayload(item, overrides = {}) {
     mime: item.image?.mime || "",
     name: overrides.name ?? tokenName(item),
     title: overrides.title ?? settings.title,
+    reveal: overrides.reveal ?? settings.reveal,
+    revealBy: overrides.revealBy || "",
+    nonce: Math.random().toString(36).slice(2),
+  };
+}
+
+/** Payload for Forsaken: one token, its name, its role in the story and how it is shown. */
+export function forsakenPayload(item, overrides = {}) {
+  const settings = loadSettings();
+  return {
+    animation: "forsaken",
+    itemId: item.id,
+    imageUrl: item.image?.url || "",
+    mime: item.image?.mime || "",
+    name: overrides.name ?? tokenName(item),
+    role: overrides.role ?? settings.forsakenRole,
+    display: overrides.display ?? settings.forsakenDisplay,
     reveal: overrides.reveal ?? settings.reveal,
     revealBy: overrides.revealBy || "",
     nonce: Math.random().toString(36).slice(2),
