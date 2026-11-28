@@ -92,8 +92,9 @@ The GM chooses the animation from the **Animation** menu in the popover.
   The lyric lines live in `LYRICS` in `src/star/scene.js`: they are timed to the vocal phrases, and the words
   are stand-ins until the real lyrics are added. Music: `public/audio/star.mp3`.
   (ตามสตอรี่บอร์ด: ขนนก, ยาน space colony 3D, ดวงจันทร์, แถบดำ+แฟลช, token ลอยในอวกาศ; เนื้อเพลงแก้ได้ที่ LYRICS)
-- **Forsaken:** an 88 s Rochas313-style cutscene in a blocky 3D Roblox world (`src/forsaken/world.js`): R6
-  characters, a stud baseplate farm and the giant stepped tree Nosoi. Dialogue under the tree, then the music
+- **Rochas313:** an 88 s cutscene to the FORSAKEN cover in a 3D Roblox world (`src/forsaken/world.js`): Rochas313 and
+  Cappy0 are their real avatars exported from Roblox Studio (limbs rounded), the noob stays blocky, and Nosoi
+  is the real tree model, on the floating island from the map. Dialogue under the tree, then the music
   hits: red and white posterize with pixel lyrics, rot spreading over the tree, a red chorus of tall serif
   words before rays, inverted cyan flashes, dead trees in sepia, and the last question, "WHY HAVE YOU FORSAKEN
   ME?". The GM picks the player's **role** (the infected one, in Rochas's place, or the one Nosoi calls at the

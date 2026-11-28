@@ -108,13 +108,13 @@ OBR.onReady(() => {
     },
   });
 
-  // GM-only right-click entry for Forsaken on a single image token (uses the popover's role and display).
+  // GM-only right-click entry for Rochas313 on a single image token (uses the popover's role and display).
   OBR.contextMenu.create({
     id: `${ID}/context-menu-forsaken`,
     icons: [
       {
         icon: `${BASE}icon.svg`,
-        label: "Forsaken",
+        label: "Rochas313",
         filter: { roles: ["GM"], max: 1, every: [{ key: "type", value: "IMAGE" }] },
       },
     ],

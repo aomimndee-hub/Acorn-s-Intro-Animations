@@ -67,8 +67,8 @@ export const ANIMATIONS = [
   },
   {
     id: "forsaken",
-    label: "Forsaken",
-    description: "Rochas313-style 3D Roblox cutscene: the tree Nosoi spreads in red. The player is the infected one or the one it calls (about 88 s).",
+    label: "Rochas313",
+    description: "3D Roblox cutscene to the FORSAKEN cover: the tree Nosoi spreads in red. The player is the infected one or the one it calls (about 88 s).",
     page: "forsaken.html",
   },
 ];
@@ -197,7 +197,7 @@ export function anchorPayload(item, overrides = {}) {
   };
 }
 
-/** Payload for Forsaken: one token, its name, its role in the story and how it is shown. */
+/** Payload for Rochas313 (internal id "forsaken"): one token, its name, its role in the story and how it is shown. */
 export function forsakenPayload(item, overrides = {}) {
   const settings = loadSettings();
   return {

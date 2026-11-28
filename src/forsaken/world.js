@@ -216,6 +216,7 @@ function makeCharacter({ skin, torso, torsoFront, arms, legs, face = "smile", ha
   const skinM = lambert(skin);
   const torsoMats = Array.from({ length: 6 }, (_, i) => (i === 4 && torsoFront ? lambert("#fff", { map: torsoFront }) : lambert(torso)));
   const t = new THREE.Mesh(blocky ? new THREE.BoxGeometry(2, 2, 1) : rbox(2, 2, 1, 0.12), torsoMats);
+  const torsoMesh = t;
   t.position.y = 3;
   body.add(t);
   const limbGeo = blocky ? new THREE.BoxGeometry(1, 2, 1) : rbox(0.98, 2, 0.98, 0.16);
@@ -245,12 +246,152 @@ function makeCharacter({ skin, torso, torsoFront, arms, legs, face = "smile", ha
   else facePlane.position.y = 0.64;
   neck.add(facePlane);
   if (hat) neck.add(hat);
-  return {
-    root, body, lArm, rArm, lLeg, rLeg, neck, faceMat,
+  const ch = {
+    root, body, lArm, rArm, lLeg, rLeg, neck, faceMat, torsoMesh, headMesh: head, hatMesh: hat,
     setFace(k) {
       if (faceTex[k] && faceMat.map !== faceTex[k]) faceMat.map = faceTex[k];
+      // an imported avatar wears its own face; the decal only covers it for the grin
+      if (ch.imported) faceMat.opacity = k === "grin" ? 1 : 0;
     },
   };
+  return ch;
+}
+
+/**
+ * Rebuilds an exported (lightly bevelled) Roblox box part as a properly rounded
+ * box, carrying its texture over: every new vertex takes the UV of the point
+ * it projects onto on the matching flat face of the original part.
+ */
+function roundedFromPart(src, radius) {
+  src.computeBoundingBox();
+  const bb = src.boundingBox;
+  const size = bb.getSize(new THREE.Vector3());
+  const ctr = bb.getCenter(new THREE.Vector3());
+  const pos = src.attributes.position;
+  const uv = src.attributes.uv;
+  // flat triangles of the original, by the axis they face
+  const faces = {};
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const n = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i += 3) {
+    a.fromBufferAttribute(pos, i);
+    b.fromBufferAttribute(pos, i + 1);
+    c.fromBufferAttribute(pos, i + 2);
+    n.subVectors(c, b).cross(new THREE.Vector3().subVectors(a, b)).normalize();
+    const ax = Math.abs(n.x) > 0.99 ? 0 : Math.abs(n.y) > 0.99 ? 1 : Math.abs(n.z) > 0.99 ? 2 : -1;
+    if (ax < 0) continue;
+    const key = `${ax}${n.getComponent(ax) > 0 ? "+" : "-"}`;
+    (faces[key] ||= []).push(i);
+  }
+  const geo = new RoundedBoxGeometry(size.x, size.y, size.z, 3, radius);
+  geo.translate(ctr.x, ctr.y, ctr.z);
+  const gp = geo.attributes.position;
+  const gn = geo.attributes.normal;
+  const out = new Float32Array(gp.count * 2);
+  const p = new THREE.Vector3();
+  for (let v = 0; v < gp.count; v++) {
+    p.fromBufferAttribute(gp, v);
+    n.fromBufferAttribute(gn, v);
+    const ab = [Math.abs(n.x), Math.abs(n.y), Math.abs(n.z)];
+    const ax = ab[0] >= ab[1] && ab[0] >= ab[2] ? 0 : ab[1] >= ab[2] ? 1 : 2;
+    const list = faces[`${ax}${n.getComponent(ax) > 0 ? "+" : "-"}`];
+    if (!list) continue;
+    const [u1, u2] = [0, 1, 2].filter((k) => k !== ax);
+    // project into the face, kept just inside its flat area
+    let best = null;
+    let bestD = Infinity;
+    for (const i of list) {
+      a.fromBufferAttribute(pos, i);
+      b.fromBufferAttribute(pos, i + 1);
+      c.fromBufferAttribute(pos, i + 2);
+      const px = p.getComponent(u1);
+      const py = p.getComponent(u2);
+      const x0 = a.getComponent(u1), y0 = a.getComponent(u2);
+      const x1 = b.getComponent(u1), y1 = b.getComponent(u2);
+      const x2 = c.getComponent(u1), y2 = c.getComponent(u2);
+      const det = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2);
+      if (Math.abs(det) < 1e-9) continue;
+      let w0 = ((y1 - y2) * (px - x2) + (x2 - x1) * (py - y2)) / det;
+      let w1 = ((y2 - y0) * (px - x2) + (x0 - x2) * (py - y2)) / det;
+      let w2 = 1 - w0 - w1;
+      const d = Math.max(0, -w0) + Math.max(0, -w1) + Math.max(0, -w2);
+      if (d < bestD) {
+        w0 = Math.max(0, w0);
+        w1 = Math.max(0, w1);
+        w2 = Math.max(0, w2);
+        const s = w0 + w1 + w2;
+        bestD = d;
+        best = [
+          (uv.getX(i) * w0 + uv.getX(i + 1) * w1 + uv.getX(i + 2) * w2) / s,
+          (uv.getY(i) * w0 + uv.getY(i + 1) * w1 + uv.getY(i + 2) * w2) / s,
+        ];
+        if (d === 0) break;
+      }
+    }
+    if (best) {
+      out[v * 2] = best[0];
+      out[v * 2 + 1] = best[1];
+    }
+  }
+  geo.setAttribute("uv", new THREE.BufferAttribute(out, 2));
+  geo.clearGroups();
+  return geo;
+}
+
+/**
+ * Dresses a character in an avatar exported from Roblox Studio: head (with its
+ * face), shirt, pants and hat from one texture atlas. The export faces -Z with
+ * the torso centred on the origin; our rig faces +Z standing on its feet.
+ */
+function loadAvatar(ch, file, atlas) {
+  return new Promise((resolve) => {
+    const tex = loader.load(`${BASE}forsaken/${atlas}`);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    new OBJLoader().load(
+      `${BASE}forsaken/${file}`,
+      (obj) => {
+        const mat = new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.5 });
+        const flip = new THREE.Matrix4().makeRotationY(Math.PI).premultiply(new THREE.Matrix4().makeTranslation(0, 3, 0));
+        const parts = [];
+        obj.traverse((o) => {
+          if (!o.isMesh) return;
+          const g = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry).clone();
+          g.applyMatrix4(flip);
+          g.computeBoundingBox();
+          parts.push({ name: o.name, g });
+        });
+        const into = (pivot, g, rounded) => {
+          const local = g.clone().translate(-pivot.position.x, -pivot.position.y, -pivot.position.z);
+          const geo = rounded ? roundedFromPart(local, rounded) : local;
+          if (!rounded) geo.computeVertexNormals();
+          pivot.add(new THREE.Mesh(geo, mat));
+        };
+        // drop the hand-built meshes, keep the pivots (and the face decal for expressions)
+        for (const p of [ch.lArm, ch.rArm, ch.lLeg, ch.rLeg]) p.clear();
+        ch.body.remove(ch.torsoMesh);
+        ch.neck.remove(ch.headMesh);
+        if (ch.hatMesh) ch.neck.remove(ch.hatMesh);
+        ch.faceMat.opacity = 0; // the atlas has the face; the decal only shows for a grin
+        for (const { name, g } of parts) {
+          const bb = g.boundingBox;
+          const cx = (bb.min.x + bb.max.x) / 2;
+          const cy = (bb.min.y + bb.max.y) / 2;
+          if (/handle/i.test(name)) into(ch.neck, g, 0);
+          else if (cy > 4.2) into(ch.neck, g, 0); // head
+          else if (cy < 2) into(cx > 0 ? ch.rLeg : ch.lLeg, g, 0.18);
+          else if (Math.abs(cx) > 1.2) into(cx > 0 ? ch.rArm : ch.lArm, g, 0.18);
+          else into(ch.body, g, 0.14); // torso
+        }
+        ch.imported = true;
+        resolve();
+      },
+      undefined,
+      () => resolve(),
+    );
+  });
 }
 
 /** Rochas's cap: green and white panels with ROCHAS across the front, a black brim. */
@@ -985,6 +1126,8 @@ export function createWorld() {
   const noob = makeCharacter({ skin: "#f8d41c", torso: "#2f4a92", arms: "#f8d41c", legs: "#3a9a42", face: "noob", blocky: true });
   const chars = { rochas, cappy, noob };
   for (const c of Object.values(chars)) scene.add(c.root);
+  // the real avatars, exported from Roblox Studio
+  pending.push(loadAvatar(rochas, "rochas.obj", "rochas.png"), loadAvatar(cappy, "cappy.obj", "cappy.png"));
   // Cappy's hat lying in the dirt for the close-up
   const lostHat = cowboyHat("#efece2");
   lostHat.rotation.set(0.35, 0.6, 0.15);
