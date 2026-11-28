@@ -118,7 +118,57 @@ const SUNSET = { bg: 0, skyTop: "#4f5d9a", skyBot: "#f2a866", warm: 0.18, vig: 0
 const SUNSET_LIGHT = { sky: "#ffe6c8", ground: "#4a3524", hemi: 1.35, sun: "#ffd0a0", sunI: 1.9 };
 const RED = { red: 1, poster: 4, vig: 0.8 };
 
-const lerp3 = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2], b[2], k)];
+const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+/** Smooth organic noise in -1..1. */
+const sn = (t, k = 0) => Math.sin(t * 1.13 + k * 1.7) * 0.5 + Math.sin(t * 2.31 + k * 3.1) * 0.3 + Math.sin(t * 3.97 + k * 0.7) * 0.2;
+/** A hand-held camera: small, slow drift on two axes. */
+const handheld = (t, amp) => [sn(t * 0.9, 11) * amp, sn(t * 0.8, 23) * amp];
+
+// The run: Rochas starts at z = 58, pushes off at RUN0, and sprints up the root
+// steps to the platform in front of the trunk (ground heights from the model).
+const RUN0 = 7.9;
+const ROOT_STEPS = [[22, 0], [19, 1], [15, 2], [9, 3], [7, 4], [5, 5.2]];
+function groundY(z) {
+  for (const [z0, y] of ROOT_STEPS.slice().reverse()) if (z <= z0) return y;
+  return 0;
+}
+/** The same, eased over each step, for a walking camera. */
+function groundYSoft(z) {
+  let y = 0;
+  for (let i = 0; i < ROOT_STEPS.length; i++) {
+    const [z0, h] = ROOT_STEPS[i];
+    const prev = i ? ROOT_STEPS[i - 1][1] : 0;
+    y += (h - prev) * smooth(-z, -z0 - 0.6, -z0 + 0.6);
+  }
+  return y;
+}
+function heroZ(t) {
+  if (t < RUN0) return 58;
+  if (t < 11.5) {
+    const d = t < RUN0 + 0.4 ? (13 * (t - RUN0) ** 2) / 0.8 : 2.6 + 13 * (t - RUN0 - 0.4);
+    return 58 - d;
+  }
+  const k = prog(t, 11.5, 13.0);
+  return lerp(13.8, -3.2, 1 - (1 - k) * (1 - k));
+}
+const runBob = (t) => Math.abs(Math.cos((t - RUN0) * Math.PI * 2 * 1.45)) - 0.5;
+
+// Glitch sounds in the cut (bursts above 5.5 kHz): [start, length]
+const GLITCHES = [
+  [2.34, 0.04], [2.66, 0.06], [3.58, 0.08], [3.91, 0.07], [4.87, 0.07], [5.19, 0.05], [5.84, 0.05], [7.89, 0.05], [10.42, 0.16],
+  [11.27, 0.07], [12.09, 0.09], [14.21, 0.12], [15.1, 0.08], [15.93, 0.09], [18.01, 0.11], [20.74, 0.11], [21.18, 0.1], [21.62, 0.37],
+  [22.08, 0.1], [22.58, 0.18], [23.47, 0.11], [24.76, 0.14], [25.15, 0.15], [25.43, 0.04], [26.63, 0.17], [27.08, 0.44], [27.34, 0.18],
+  [30.15, 0.11], [30.46, 0.13], [32.27, 0.19], [34.19, 0.1], [35.92, 0.1], [36.59, 0.1], [36.92, 0.05], [37.84, 0.09], [38.42, 0.09],
+  [39.23, 0.19], [40.1, 0.13], [40.64, 0.08], [40.91, 0.19], [41.87, 0.09], [43.07, 0.08], [44.87, 0.05],
+];
+/** 0..1 while a glitch sound plays (with a short tail), flickering frame to frame. */
+function glitchAt(t) {
+  for (const [a, d] of GLITCHES) {
+    const end = a + Math.max(d, 0.1) + 0.08;
+    if (t >= a - 0.02 && t < end) return 0.55 + 0.45 * hash(Math.floor(t * 40));
+  }
+  return 0;
+}
 
 /** Every shot returns what the 3D world needs; `hero` and `player` say who stands where. */
 const SHOTS = [
@@ -131,56 +181,102 @@ const SHOTS = [
     fog: ["#000", 22, 70],
     grade: { bg: 3, vig: 1.0, dark: 0.5 * (1 - smooth(lt, 0, 1.2)) + 0.3 * smooth(lt, 5.6, 6.6), blur: lt < 1 ? 2 : 0 },
   })],
-  [6.6, 8.4, (t, lt) => ({
-    show: { farm: 1 }, hero: { pos: HERO, rotY: Math.PI, pose: "idle", face: "worried" },
-    cam: [3.5 - lt * 0.6, 1.6, 40 - lt * 1.2], look: [0, 30 + lt * 3, TZ], fov: 58,
-    light: { hemi: 1.5, sunI: 2.4 }, fog: ["#bcd3ea", 150, 600],
-    grade: { bg: 0, skyTop: "#5f95dd", skyBot: "#dfeefa", vig: 0.4 },
-  })],
-  [8.4, 10.6, (t, lt) => {
-    const k = easeInCubic(prog(lt, 0, 2.2));
+  // ---- the run to the tree (third person), then first person at its roots -------------------
+  [6.6, 8.2, (t, lt) => {
+    const z = heroZ(t);
+    const crouch = prog(t, 7.45, 7.9);
+    const go = prog(t, 7.9, 8.15);
+    const [hx, hy] = handheld(t, 0.12);
     return {
-      show: { farm: 1 }, hero: { pos: [HERO[0], 0, HERO[2]], rotY: Math.PI + lt * 2.2, rotX: -k * 1.3, pose: "fall", face: "worried" },
-      cam: [Math.cos(lt * 2.6) * 9, 5 + lt * 1.5, HERO[2] + Math.sin(lt * 2.6) * 9], look: [0, 3, HERO[2]], roll: lt * 1.8, fov: 62,
-      light: { hemi: 1.5, sunI: 2.4 }, fog: ["#bcd3ea", 150, 600],
-      grade: { bg: 0, skyTop: "#5f95dd", skyBot: "#dfeefa", vig: 0.6, blur: 1 + k * 2, flash: Math.max(0, 0.6 - lt * 2) },
+      show: { farm: 1 },
+      hero: go > 0 ? { pos: [0, groundY(z), z], rotY: Math.PI, pose: "crouch", to: "run", blend: go, pt: t - RUN0 } : { pos: [0, 0, z], rotY: Math.PI, pose: "idle", to: "crouch", blend: crouch, face: "worried" },
+      cam: [1.7 + hx, 5.5 + hy, z + 4.6 - easeInOut(prog(t, 6.6, 8.2)) * 0.8], look: [-0.4, 6.5, TZ], fov: 52,
+      light: { hemi: 1.5, sunI: 2.2 }, fog: ["#bcd3ea", 150, 600],
+      grade: { bg: 0, skyTop: "#5f95dd", skyBot: "#dfeefa", vig: 0.5 },
     };
   }],
-  [10.6, 13.0, (t, lt) => ({
-    show: { farm: 1 },
-    cam: [-16 + lt * 0.8, 9 + lt, TZ + 26], look: [0, 20 + lt * 2, TZ], fov: 50,
-    light: SUNSET_LIGHT, grade: { ...SUNSET, blur: 7 - lt * 2, warm: 0.6, dark: 0.1 },
-  })],
-  [13.0, 16.5, (t, lt) => ({
-    show: { farm: 1 }, chars: { noob: { pos: NPC, rotY: 0, pose: "idle" } },
-    cam: [0.5, 1.2, 25 - lt * 0.8], look: [0, 58 - lt * 2, TZ], fov: 60, roll: Math.sin(lt * 0.4) * 0.05,
-    light: { ...SUNSET_LIGHT, hemi: 1.1 }, grade: { ...SUNSET, skyTop: "#cfd6e6", skyBot: "#fff4e4", warm: 0.2, vig: 0.7 },
-  })],
-  [16.5, 19.6, (t, lt) => ({
-    show: { farm: 1 }, hero: { pos: [-1.6, 0, 29], rotY: Math.PI + 0.25, pose: "talk", face: "worried" },
-    chars: { cappy: { pos: [2.2, 0, 29.6], rotY: Math.PI - 0.2, pose: "idle" }, noob: { pos: NPC, rotY: 0.05, pose: "idle" } },
-    cam: [0.3 + lt * 0.2, 5.4, 36.5 - lt * 0.3], look: [0, 3.6, 22], fov: 44,
-    light: SUNSET_LIGHT, grade: { ...SUNSET },
-  })],
-  [19.6, 20.6, (t, lt) => ({
-    show: { farm: 1 }, chars: { noob: { pos: NPC, rotY: 0, pose: "idle" } },
-    cam: [3, 3, 27], look: [0, 4, 21], fov: 40,
-    light: SUNSET_LIGHT, grade: { ...SUNSET, red: 0.85, blur: 6, dark: 0.25, glitch: 0.6 },
-  })],
-  [20.6, 23.5, (t, lt) => ({
-    show: { farm: 1 }, chars: { noob: { pos: NPC, rotY: 0, pose: "stand", extra: { head: -0.05, headZ: Math.sin(lt * 1.2) * 0.08 } } },
-    cam: [0.4, 4.7, 24.6 - lt * 0.25], look: [0, 4.5, 21], fov: 42,
-    light: SUNSET_LIGHT, grade: { ...SUNSET, warm: 0.5 },
-  })],
-  [23.5, 25.95, (t, lt) => ({
-    show: { farm: 1 }, hero: { pos: [-1.6, 0, 33], rotY: Math.PI, pose: "idle", face: "worried" },
-    chars: { cappy: { pos: [2.2, 0, 33.6], rotY: Math.PI, pose: "idle" }, noob: { pos: NPC, rotY: 0, pose: "stand" } },
-    cam: [0, 2.2, 56 - lt * 2], look: [0, 20, TZ], fov: 50,
-    light: SUNSET_LIGHT, grade: { ...SUNSET, warm: 0.45, dark: smooth(lt, 1.6, 2.45) * 0.4 },
-  })],
+  [8.2, 9.2, (t, lt) => {
+    const z = heroZ(t);
+    const [hx, hy] = handheld(t, 0.25);
+    return {
+      show: { farm: 1 }, hero: { pos: [0, groundY(z), z], rotY: Math.PI, pose: "run", pt: t - RUN0 },
+      cam: [0.9 + hx, 1.7 + hy + runBob(t) * 0.3, z + 7.5 - lt * 0.6], look: [0, 9, TZ], fov: 60,
+      light: { hemi: 1.5, sunI: 2.2 }, fog: ["#bcd3ea", 150, 600],
+      grade: { bg: 0, skyTop: "#5f95dd", skyBot: "#dfeefa", vig: 0.6, blur: 0.6 },
+    };
+  }],
+  [9.2, 10.8, (t, lt) => {
+    // the camera whips once around him while he keeps running
+    const z = heroZ(t);
+    const y = groundY(z);
+    const a = Math.PI * 0.5 + easeInOut(prog(t, 9.2, 10.8)) * Math.PI * 2;
+    return {
+      show: { farm: 1 }, hero: { pos: [0, y, z], rotY: Math.PI, pose: "run", pt: t - RUN0 },
+      cam: [Math.cos(a) * 6.5, y + 3.4 + Math.sin(a * 2) * 0.6, z + Math.sin(a) * 6.5], look: [0, y + 3.2, z], fov: 58, roll: Math.sin(a) * 0.25,
+      light: { hemi: 1.5, sunI: 2.2 }, fog: ["#bcd3ea", 150, 600],
+      grade: { bg: 0, skyTop: "#5f95dd", skyBot: "#dfeefa", vig: 0.7, blur: 0.8 + Math.abs(Math.cos(a)) * 1.2 },
+    };
+  }],
+  [10.8, 11.5, (t, lt) => {
+    const z = heroZ(t);
+    const y = groundY(z);
+    return {
+      show: { farm: 1 }, hero: { pos: [0, y, z], rotY: Math.PI, pose: "run", pt: t - RUN0 },
+      cam: [2.3, y + 0.9, z - 1.2 + lt * 2], look: [0, y + 1.5, z], fov: 56, roll: -0.12,
+      light: { hemi: 1.2, sunI: 1.6, backI: 1 }, fog: ["#3a0806", 40, 200],
+      grade: { bg: 0, skyTop: "#3a0000", skyBot: "#c02010", red: 0.55, vig: 1.0, blur: 1 },
+    };
+  }],
+  [11.5, 13.0, (t, lt) => {
+    // first person: the last strides up the roots, stopping hard at the bark
+    const z = heroZ(t);
+    const y = groundY(z);
+    const moving = 1 - prog(t, 13.0 - 0.4, 13.0);
+    const [hx, hy] = handheld(t, 0.08);
+    return {
+      show: { farm: 1 }, fp: true,
+      cam: [hx, y + 4.7 + runBob(t) * moving * 0.5 + hy, z - 0.2], look: [hx * 2, y + 5.2 - prog(t, 12.4, 13) * 0.8, z - 10], fov: 66 - prog(t, 12.2, 13) * 6,
+      roll: Math.sin(t * Math.PI * 2 * 1.45) * 0.035 * moving,
+      light: SUNSET_LIGHT, fog: ["#c98b5a", 120, 520],
+      grade: { ...SUNSET, warm: 0.3, blur: smooth(t, 12.3, 12.9) * 6, vig: 0.8 },
+    };
+  }],
+  [13.0, 16.5, (t, lt) => {
+    // first person: looking up the trunk; breath and a slow sway
+    const [hx, hy] = handheld(t, 0.06);
+    const up = easeInOut(prog(t, 13.0, 15.2));
+    return {
+      show: { farm: 1 }, fp: true,
+      cam: [hx, 5.2 + 4.75 + hy + Math.sin(t * 1.7) * 0.04, -2.8 + up * 0.6], look: [sn(t * 0.4) * 2, 9 + up * 56, TZ], fov: 64, roll: sn(t * 0.3, 2) * 0.05,
+      light: SUNSET_LIGHT, fog: ["#c98b5a", 120, 520],
+      grade: { ...SUNSET, skyTop: "#d6dbe8", skyBot: "#fff1de", warm: 0.2, vig: 0.8 }, flashRed: 1,
+    };
+  }],
+  [16.5, 23.5, (t, lt) => {
+    // first person, face to the bark; his own sleeve reaches into frame to touch it
+    const [hx, hy] = handheld(t, 0.05);
+    return {
+      show: { farm: 1 }, fp: true,
+      hero: { pos: [0, 5.2, -3.4], rotY: Math.PI, pose: "touch", noHead: true },
+      cam: [-0.2 + hx, 9.95 + hy + Math.sin(t * 1.7) * 0.03, -2.95], look: [-0.6 + sn(t * 0.3) * 0.5, 8.6 + sn(t * 0.25, 1) * 0.6, -7], fov: 62, roll: sn(t * 0.3, 3) * 0.06,
+      light: SUNSET_LIGHT, fog: ["#c98b5a", 120, 520],
+      grade: { ...SUNSET, warm: 0.35, blur: 2.2 + sn(t * 0.5) * 1.2, vig: 1.0 }, flashRed: 1,
+    };
+  }],
+  [23.5, 25.95, (t, lt) => {
+    // first person: stepping back down the roots, eyes going up the tree
+    const z = lerp(-3.2, 7, easeInOut(prog(t, 23.5, 25.9)));
+    const [hx, hy] = handheld(t, 0.08);
+    return {
+      show: { farm: 1 }, fp: true,
+      cam: [hx, groundYSoft(z) + 4.7 + hy + Math.abs(Math.sin(t * 5)) * 0.08, z], look: [0, lerp(14, 52, easeInOut(prog(t, 23.5, 25.9))), TZ], fov: 62,
+      light: SUNSET_LIGHT, fog: ["#c98b5a", 120, 520],
+      grade: { ...SUNSET, warm: 0.4, dark: smooth(t, 25.2, 25.95) * 0.4, vig: 0.9 }, flashRed: 1,
+    };
+  }],
   [25.95, 26.75, (t, lt) => ({
-    show: { farm: 1 }, chars: { noob: { pos: NPC, rotY: 0, pose: "stand", face: "grin" } },
-    cam: [0.2, 4.7, 23.4 - lt * 1.2], look: [0, 4.6, 21], fov: 44, roll: (hash(Math.floor(t * 30)) - 0.5) * 0.06,
+    show: { farm: 1 }, chars: { noob: { pos: [0.5, 5.2, -4.6], rotY: 0, pose: "stand", face: "grin" } },
+    cam: [0.6, 9.8, -1.4 - lt * 0.9], look: [0.5, 9.75, -4.6], fov: 44, roll: (hash(Math.floor(t * 30)) - 0.5) * 0.06,
     light: SUNSET_LIGHT, grade: { ...SUNSET, red: 0.7, invert: lt < 0.12 ? 1 : 0, glitch: 0.8, poster: 5 },
   })],
   // ---- verse: red and white, posterized -------------------------------------------------------
@@ -552,6 +648,54 @@ function drawToken(ctx, st, world, feet, height, grade, alpha = 1) {
   return { x: a.x, y: a.y - h * 0.92 };
 }
 
+// ---- glitch echoes --------------------------------------------------------------------------------
+
+/** Keeps a short history of finished 3D frames (half size) for the ghosting. */
+function remember(st, cv) {
+  if (st.still) return;
+  const w = Math.max(1, Math.round(st.W / 2));
+  const h = Math.max(1, Math.round(st.H / 2));
+  if (!st.hist || st.hist[0].width !== w || st.hist[0].height !== h) {
+    st.hist = Array.from({ length: 8 }, () => Object.assign(document.createElement("canvas"), { width: w, height: h }));
+    st.hi = 0;
+    st.hn = 0;
+  }
+  st.hist[st.hi].getContext("2d").drawImage(cv, 0, 0, w, h);
+  st.hi = (st.hi + 1) % st.hist.length;
+  st.hn = Math.min(st.hist.length, st.hn + 1);
+}
+
+/**
+ * The stutter on a glitch sound: copies of the last few frames and of this one
+ * stacked over each other, shifted and scaled, changing every frame.
+ */
+function echoes(ctx, st, cv, t, g) {
+  const { W, H } = st;
+  const f = Math.floor(t * 30);
+  ctx.save();
+  const layers = [];
+  if (st.hn) for (const back of [2, 5]) if (back < st.hn) layers.push(st.hist[(st.hi - 1 - back + st.hist.length * 2) % st.hist.length]);
+  layers.push(cv, cv);
+  layers.forEach((img, i) => {
+    const k = 1 + (i + 1) * 0.045 * (0.5 + hash(f * 7 + i));
+    const dx = (hash(f * 13 + i * 3) - 0.5) * W * 0.07;
+    const dy = (hash(f * 17 + i * 5) - 0.5) * H * 0.04;
+    ctx.globalAlpha = (0.32 + 0.2 * hash(f + i)) * g;
+    ctx.globalCompositeOperation = hash(f * 3 + i) > 0.8 ? "difference" : i % 2 ? "screen" : "source-over";
+    ctx.drawImage(img, (W - W * k) / 2 + dx, (H - H * k) / 2 + dy, W * k, H * k);
+  });
+  // a few torn horizontal strips
+  ctx.globalCompositeOperation = "source-over";
+  ctx.globalAlpha = 0.9 * g;
+  for (let i = 0; i < 4; i++) {
+    const y = hash(f * 19 + i) * H;
+    const h = H * (0.015 + hash(f * 23 + i) * 0.05);
+    const dx = (hash(f * 29 + i) - 0.5) * W * 0.15;
+    ctx.drawImage(cv, 0, (y / H) * cv.height, cv.width, (h / H) * cv.height, dx, y, W, h);
+  }
+  ctx.restore();
+}
+
 // ---- render ---------------------------------------------------------------------------------------
 
 export function render(ctx, st, t) {
@@ -565,7 +709,8 @@ export function render(ctx, st, t) {
   let playerSpot = null;
   if (shot.hero) {
     chars.rochas = { ...shot.hero };
-    if (!called) {
+    if (shot.fp && tokenMode && !called) chars.rochas.hidden = true; // no sleeve when the player is a token
+    else if (!called) {
       heroTag = st.name;
       if (tokenMode) {
         chars.rochas.hidden = true;
@@ -589,10 +734,20 @@ export function render(ctx, st, t) {
     }
   }
   const s3 = { ...shot, chars };
+  // glitch sounds: the frame tears, and in first person it flashes red
+  const g = glitchAt(t);
+  s3.grade = { ...(shot.grade || {}) };
+  if (g > 0) {
+    s3.grade.glitch = Math.max(s3.grade.glitch || 0, 0.9);
+    if (shot.flashRed) {
+      s3.grade.red = 0.9;
+      s3.grade.poster = s3.grade.poster || 4;
+    }
+  }
   // beat: small push and shake once the music is in
   const bp = beatPulse(t, 0.1);
   const shake = (t >= CHORUS && t < 67.6 ? 1 : t >= B0 ? 0.4 : 0) * bp;
-  const grade = s3.grade || {};
+  const grade = s3.grade;
 
   ctx.save();
   ctx.fillStyle = "#000";
@@ -604,6 +759,8 @@ export function render(ctx, st, t) {
     ctx.translate((hash(Math.floor(t * 60)) - 0.5) * shake * 14 * st.U, (hash(Math.floor(t * 60) + 7) - 0.5) * shake * 14 * st.U);
     ctx.drawImage(cv, -4, -4, W + 8, H + 8);
     ctx.restore();
+    if (g > 0) echoes(ctx, st, cv, t, g);
+    remember(st, cv);
     // the token stands where the hidden avatar would be
     if (playerSpot) {
       const p = playerSpot.pos;
@@ -611,6 +768,8 @@ export function render(ctx, st, t) {
       const seated = playerSpot.pose === "sit" || playerSpot.pose === "hug";
       const top = drawToken(ctx, st, world, [p[0], p[1] + (lying ? 0.4 : 0), p[2]], lying ? 2 : seated ? 4 : 5, grade);
       if (top && !lying) nameTag(ctx, st, st.name, top.x, top.y - 4);
+    } else if (shot.fp) {
+      // first person: nobody to label
     } else if (!tokenMode || called) {
       // a name tag over the avatar the player is playing
       const tagged = !called ? (shot.hero ? chars.rochas : null) : shot.finale ? chars.noob : t >= 80.6 && t < 82.6 ? chars.noob : null;
@@ -650,4 +809,4 @@ export function render(ctx, st, t) {
 }
 
 /** Shot list exposed for the warm-up pass. */
-export const WARM = [1, 7, 9, 12, 14, 18, 22, 26.2, 28, 37.5, 40, 50, 55, 58, 61, 66, 70, 76, 78, 79.5, 81, 83, 86];
+export const WARM = [1, 7, 8.6, 9.6, 11.1, 12, 14, 14.25, 18, 21.7, 24.5, 26.2, 27.1, 28, 37.5, 40, 50, 55, 58, 61, 66, 70, 76, 78, 79.5, 81, 83, 86];

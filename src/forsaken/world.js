@@ -466,28 +466,102 @@ function cowboyHat(color = "#f4f2ea") {
   return g;
 }
 
+/** Smooth organic noise in -1..1: a few incommensurate sines, never repeating visibly. */
+const sn = (t, k = 0) => (Math.sin(t * 1.13 + k * 1.7) * 0.5 + Math.sin(t * 2.31 + k * 3.1) * 0.3 + Math.sin(t * 3.97 + k * 0.7) * 0.2);
+const smoothstep = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+
+/**
+ * Poses as functions of time. Besides limb angles each one can move the whole
+ * body: bob (up and down), sway (side lean), twist (turn of the hips), lean
+ * (forward); the head can lag behind (follow-through) or look around.
+ * Every pose breathes, so nobody ever stands perfectly still.
+ */
+const breathe = (t, k = 1) => ({ bob: Math.sin(t * 1.7) * 0.035 * k, lArmZ: 0.04 + Math.sin(t * 1.7) * 0.02 * k, rArmZ: -0.04 - Math.sin(t * 1.7) * 0.02 * k });
 const POSES = {
-  stand: () => ({}),
-  idle: (t) => ({ lArm: Math.sin(t * 1.6) * 0.06, rArm: -Math.sin(t * 1.6) * 0.06, head: Math.sin(t * 0.7) * 0.08 }),
-  talk: (t) => ({ rArm: -0.6 - Math.sin(t * 5) * 0.15, rArmZ: 0.2, head: Math.sin(t * 2) * 0.1 }),
-  walk: (t) => ({ lArm: Math.sin(t * 7) * 0.7, rArm: -Math.sin(t * 7) * 0.7, lLeg: -Math.sin(t * 7) * 0.7, rLeg: Math.sin(t * 7) * 0.7 }),
-  fall: (t) => ({ lArm: -2.6 + Math.sin(t * 9) * 0.4, rArm: -2.4 - Math.sin(t * 8) * 0.4, lLeg: 0.5 + Math.sin(t * 7) * 0.3, rLeg: -0.3 - Math.sin(t * 6) * 0.3, lArmZ: -0.5, rArmZ: 0.5 }),
-  sit: (t) => ({ lLeg: -1.45, rLeg: -1.45, lArm: -0.9, rArm: -0.9, lArmZ: 0.25, rArmZ: -0.25, head: -0.35 + Math.sin(t) * 0.05, seat: 1 }),
-  hug: (t) => ({ lLeg: -1.45, rLeg: -1.45, lArm: -1.4, rArm: -1.4, lArmZ: 0.5, rArmZ: -0.5, head: -0.7 + Math.sin(t * 6) * 0.03, seat: 1 }),
-  lie: (t) => ({ lArm: -0.2, rArm: -2.9, lLeg: 0.15, rLeg: -0.1, head: 0.3, lieDown: 1, breath: Math.sin(t * 2) * 0.03 }),
-  reach: (t) => ({ lArm: -1.55, rArm: -1.55, head: -0.2 + Math.sin(t * 3) * 0.05 }),
-  limp: (t) => ({ lArm: 0.15, rArm: -0.1, lArmZ: 0.15, rArmZ: -0.15, head: 0.2, lean: 0.25 + Math.sin(t * 1.3) * 0.05 }),
+  stand: (t) => ({ ...breathe(t), head: sn(t * 0.3, 1) * 0.04, headY: sn(t * 0.25, 2) * 0.08 }),
+  idle: (t) => ({
+    ...breathe(t),
+    sway: sn(t * 0.4, 3) * 0.03, // weight shifting from foot to foot
+    lArm: sn(t * 0.5, 4) * 0.06, rArm: sn(t * 0.5, 5) * 0.06,
+    lLeg: Math.max(0, sn(t * 0.4, 3)) * 0.06, rLeg: Math.max(0, -sn(t * 0.4, 3)) * 0.06,
+    head: sn(t * 0.35, 6) * 0.06, headY: sn(t * 0.22, 7) * 0.22, headZ: sn(t * 0.3, 8) * 0.04,
+  }),
+  talk: (t) => {
+    // gestures rise, hold and fall instead of pumping on a sine
+    const g = smoothstep((Math.sin(t * 1.3) + 0.3) / 1.3);
+    return {
+      ...breathe(t, 1.2), sway: sn(t * 0.5, 2) * 0.03,
+      rArm: -0.2 - g * 0.75 + sn(t * 3, 1) * 0.05, rArmZ: -0.15 - g * 0.2, lArm: sn(t * 0.6, 3) * 0.08,
+      head: -0.05 + Math.sin(t * 4.2) * 0.04 * g, headY: sn(t * 0.5, 4) * 0.15, headZ: sn(t * 0.6, 5) * 0.05,
+    };
+  },
+  crouch: (t, k = 1) => ({ bob: -0.35 * k, lean: 0.35 * k, lLeg: -0.5 * k, rLeg: -0.3 * k, lArm: 0.5 * k, rArm: 0.6 * k, head: -0.25 * k }),
+  run: (t) => {
+    const ph = t * Math.PI * 2 * 1.45; // strides per second
+    const s = Math.sin(ph);
+    const s2 = Math.sin(ph - 0.35); // arms trail the legs a little
+    return {
+      lLeg: s * 0.95, rLeg: -s * 0.95,
+      lArm: -s2 * 0.85 + 0.15, rArm: s2 * 0.85 + 0.15, lArmZ: 0.12, rArmZ: -0.12,
+      bob: Math.abs(Math.cos(ph)) * 0.32 - 0.1, // two bounces per stride
+      lean: 0.32, twist: s * 0.13, sway: Math.cos(ph) * 0.03,
+      head: -0.2 - Math.abs(Math.cos(ph)) * 0.04, headY: -s * 0.11, // the head stays steady while the hips turn
+    };
+  },
+  fall: (t) => ({
+    lArm: -2.4 + sn(t * 5, 1) * 0.5, rArm: -2.2 + sn(t * 5, 2) * 0.5, lArmZ: -0.6, rArmZ: 0.6,
+    lLeg: 0.4 + sn(t * 4, 3) * 0.4, rLeg: -0.3 + sn(t * 4, 4) * 0.4, head: 0.3 + sn(t * 3, 5) * 0.2,
+  }),
+  sit: (t) => ({ ...breathe(t, 1.5), lLeg: -1.45, rLeg: -1.45, lArm: -0.9, rArm: -0.9, lArmZ: 0.25, rArmZ: -0.25, head: -0.35 + sn(t * 0.4, 1) * 0.06, seat: 1 }),
+  hug: (t) => {
+    // knees up, rocking, shoulders shaking with sobs
+    const sob = Math.max(0, Math.sin(t * 2.2)) ** 3;
+    return {
+      lLeg: -1.45, rLeg: -1.45, lArm: -1.35 - sob * 0.05, rArm: -1.35 - sob * 0.05, lArmZ: 0.48, rArmZ: -0.48,
+      head: -0.65 + sob * 0.08 + Math.sin(t * 9) * 0.012 * sob, seat: 1,
+      lean: 0.12 + Math.sin(t * 1.1) * 0.08, bob: sob * 0.05,
+    };
+  },
+  lie: (t) => {
+    const twitch = Math.max(0, Math.sin(t * 0.7 + 1)) ** 12;
+    return { lArm: -0.2 + twitch * 0.3, rArm: -2.9, lLeg: 0.15, rLeg: -0.1 - twitch * 0.15, head: 0.3 + sn(t * 0.3) * 0.05, lieDown: 1, breath: Math.sin(t * 1.5) * 0.025 };
+  },
+  reach: (t) => ({
+    ...breathe(t, 0.6),
+    lArm: -1.45 + sn(t * 0.8, 1) * 0.08 + Math.sin(t * 13) * 0.012, rArm: -1.5 + sn(t * 0.8, 2) * 0.08 + Math.sin(t * 11) * 0.012,
+    lArmZ: 0.08, rArmZ: -0.08, head: -0.15 + sn(t * 0.6, 3) * 0.06, headZ: sn(t * 0.4, 4) * 0.08, lean: 0.06,
+  }),
+  // first person: one arm reaches up to touch the bark, trembling
+  touch: (t) => ({ ...breathe(t, 0.6), rArm: -1.75 + sn(t * 0.7, 1) * 0.12 + Math.sin(t * 12) * 0.015, rArmZ: 0.3, lArm: -0.2 + sn(t * 0.6, 2) * 0.1 }),
+  limp: (t) => ({ ...breathe(t, 0.8), lArm: 0.15, rArm: -0.1, lArmZ: 0.15, rArmZ: -0.15, head: 0.2, lean: 0.25 + sn(t * 0.6, 1) * 0.05 }),
 };
 
-function applyPose(ch, name, t, extra = {}) {
-  const p = { ...(POSES[name] || POSES.stand)(t), ...extra };
+const POSE_KEYS = ["lArm", "rArm", "lArmZ", "rArmZ", "lLeg", "rLeg", "head", "headY", "headZ", "bob", "sway", "twist", "lean", "seat"];
+function poseValues(name, t, extra) {
+  const f = POSES[name] || POSES.stand;
+  return { ...f(t), ...extra };
+}
+
+/**
+ * Applies a pose, optionally blended toward a second one (`blend` 0..1), so a
+ * character eases from standing into a crouch into a run instead of snapping.
+ */
+function applyPose(ch, name, t, extra = {}, to = null, blend = 0) {
+  let p = poseValues(name, t, extra);
+  if (to && blend > 0) {
+    const q = poseValues(to, t, extra);
+    const k = smoothstep(blend);
+    const out = { ...p, ...(k > 0.5 ? q : {}) };
+    for (const key of POSE_KEYS) out[key] = (p[key] || 0) * (1 - k) + (q[key] || 0) * k;
+    p = out;
+  }
   ch.lArm.rotation.set(p.lArm || 0, 0, p.lArmZ || 0);
   ch.rArm.rotation.set(p.rArm || 0, 0, p.rArmZ || 0);
   ch.lLeg.rotation.set(p.lLeg || 0, 0, 0);
   ch.rLeg.rotation.set(p.rLeg || 0, 0, 0);
   ch.neck.rotation.set(p.head || 0, p.headY || 0, p.headZ || 0);
-  ch.body.position.set(0, p.seat ? -1.0 : 0, 0);
-  ch.body.rotation.set(p.lean || 0, 0, 0);
+  ch.body.position.set(0, (p.seat ? -1.0 * p.seat : 0) + (p.bob || 0), 0);
+  ch.body.rotation.set(p.lean || 0, p.twist || 0, p.sway || 0);
   if (p.lieDown) {
     ch.body.rotation.set(-Math.PI / 2 + (p.breath || 0), 0, 0);
     ch.body.position.set(0, 0.5, 0);
@@ -1190,7 +1264,8 @@ export function createWorld() {
         if (!p) continue;
         c.root.position.set(...p.pos);
         c.root.rotation.set(p.rotX || 0, p.rotY || 0, p.rotZ || 0);
-        applyPose(c, p.pose || "idle", t, p.extra);
+        applyPose(c, p.pose || "idle", (p.pt ?? t) + (k === "cappy" ? 3.1 : k === "noob" ? 7.3 : 0), p.extra, p.to, p.blend || 0);
+        c.neck.visible = !p.noHead;
         let face = p.face || (k === "rochas" ? "worried" : k === "cappy" ? "blank" : "noob");
         if (k === "noob") face = face === "grin" ? "noobGrin" : "noob";
         c.setFace(face);

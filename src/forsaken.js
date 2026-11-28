@@ -238,6 +238,7 @@ async function boot() {
   ctx.fillRect(0, 0, state.W, state.H);
 
   if (params.has("seek")) {
+    state.still = true;
     gate.hidden = true;
     skip.hidden = true;
     render(ctx, state, Number(params.get("seek")) || 0);
