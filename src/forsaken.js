@@ -237,36 +237,6 @@ async function boot() {
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, state.W, state.H);
 
-  if (params.has("view")) {
-    // TEMP debug view
-    const [cx, cy, cz, lx, ly, lz, fov] = params.get("view").split(",").map(Number);
-    const cv = state.world.render(state.W, state.H, 1, 5, {
-      show: { farm: 1 }, cam: [cx, cy, cz], look: [lx, ly, lz], fov: fov || 50,
-      chars: { rochas: { pos: [-3, 0, 30], rotY: 0, pose: "stand" }, cappy: { pos: [0, 0, 30], rotY: 0, pose: "stand" }, noob: { pos: [3, 0, 30], rotY: 0, pose: "stand" } },
-      fog: ["#a9c7ea", 300, 900], grade: { bg: 0, vig: 0.2 },
-    });
-    ctx.drawImage(cv, 0, 0, state.W, state.H);
-    gate.hidden = true;
-    skip.hidden = true;
-    document.body.dataset.ready = "1";
-    return;
-  }
-  if (params.has("bench")) {
-    // TEMP timing hook
-    const out = [];
-    for (const bt of params.get("bench").split(",").map(Number)) {
-      render(ctx, state, bt);
-      const a = performance.now();
-      for (let i = 0; i < 10; i++) render(ctx, state, bt + i * 0.01);
-      const b = performance.now();
-      for (let i = 0; i < 10; i++) ctx.drawImage(state.world.render(state.W, state.H, state.dpr3, bt, { cam: [0, 5, 30], look: [0, 5, 0], grade: { bg: 3 }, show: {} }), 0, 0, 10, 10);
-      const c = performance.now();
-      out.push(`${bt}: full ${((b - a) / 10).toFixed(1)}ms, empty3d ${((c - b) / 10).toFixed(1)}ms`);
-    }
-    document.body.dataset.ms = out.join("\n");
-    document.body.dataset.ready = "1";
-    return;
-  }
   if (params.has("seek")) {
     gate.hidden = true;
     skip.hidden = true;

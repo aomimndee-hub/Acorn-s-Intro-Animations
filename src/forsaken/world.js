@@ -9,6 +9,7 @@
 // as a texture); the 2D layer draws it where project() says.
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 
 const TAU = Math.PI * 2;
@@ -78,7 +79,39 @@ function imageTex(file) {
   return t;
 }
 
+/** Felt-tip strokes, a little wobbly, like the noob's hand-drawn face. */
+function marker(x, w, pts, width) {
+  x.lineCap = "round";
+  x.lineJoin = "round";
+  x.strokeStyle = "#141414";
+  x.lineWidth = w * width;
+  x.beginPath();
+  pts.forEach(([px, py], i) => (i ? x.lineTo(px * w, py * w) : x.moveTo(px * w, py * w)));
+  x.stroke();
+}
+
 const FACES = {
+  // the noob's face: two short upright eyes and a wide smile (256 wide, 180 tall)
+  noob(x, w) {
+    marker(x, w, [[0.4, 0.2], [0.395, 0.33]], 0.035);
+    marker(x, w, [[0.55, 0.19], [0.555, 0.33]], 0.035);
+    const arc = [];
+    for (let i = 0; i <= 12; i++) {
+      const a = Math.PI * (0.08 + (i / 12) * 0.84);
+      arc.push([0.47 + Math.cos(a) * 0.19, 0.3 + Math.sin(a) * 0.14 + Math.sin(i * 1.7) * 0.003]);
+    }
+    marker(x, w, arc, 0.028);
+  },
+  noobGrin(x, w) {
+    marker(x, w, [[0.38, 0.18], [0.375, 0.34]], 0.045);
+    marker(x, w, [[0.57, 0.17], [0.575, 0.34]], 0.045);
+    x.fillStyle = "#141414";
+    x.beginPath();
+    x.moveTo(w * 0.18, w * 0.38);
+    x.quadraticCurveTo(w * 0.47, w * 0.72, w * 0.78, w * 0.36);
+    x.quadraticCurveTo(w * 0.47, w * 0.5, w * 0.18, w * 0.38);
+    x.fill();
+  },
   smile(x, w) {
     x.fillStyle = "#111";
     x.beginPath();
@@ -107,7 +140,7 @@ const FACES = {
   },
 };
 const faceTex = {};
-for (const k of Object.keys(FACES)) faceTex[k] = canvasTex(256, 256, (x, w) => FACES[k](x, w));
+for (const k of Object.keys(FACES)) faceTex[k] = canvasTex(256, k.startsWith("noob") ? 180 : 256, (x, w) => FACES[k](x, w));
 faceTex.rochas = imageTex("face-rochas.png"); // Rochas313's face
 faceTex.epic = imageTex("face-epic.png"); // Cappy0's face
 faceTex.worried = faceTex.rochas;
@@ -176,16 +209,16 @@ const FACE = new THREE.CylinderGeometry(0.628, 0.628, 0.95, 24, 1, true, -Math.P
  * An R6 character: head, torso, two arms, two legs, each part on a pivot so it
  * can be posed. The group's origin is between the feet; it stands 5 studs tall.
  */
-function makeCharacter({ skin, torso, torsoFront, arms, legs, face = "smile", hat = null }) {
+function makeCharacter({ skin, torso, torsoFront, arms, legs, face = "smile", hat = null, blocky = false }) {
   const root = new THREE.Group();
   const body = new THREE.Group(); // tilts and leans as a whole
   root.add(body);
   const skinM = lambert(skin);
   const torsoMats = Array.from({ length: 6 }, (_, i) => (i === 4 && torsoFront ? lambert("#fff", { map: torsoFront }) : lambert(torso)));
-  const t = new THREE.Mesh(rbox(2, 2, 1, 0.12), torsoMats);
+  const t = new THREE.Mesh(blocky ? new THREE.BoxGeometry(2, 2, 1) : rbox(2, 2, 1, 0.12), torsoMats);
   t.position.y = 3;
   body.add(t);
-  const limbGeo = rbox(0.98, 2, 0.98, 0.16);
+  const limbGeo = blocky ? new THREE.BoxGeometry(1, 2, 1) : rbox(0.98, 2, 0.98, 0.16);
   const limb = (color, x, y) => {
     const pivot = new THREE.Group();
     pivot.position.set(x, y, 0);
@@ -202,12 +235,14 @@ function makeCharacter({ skin, torso, torsoFront, arms, legs, face = "smile", ha
   const neck = new THREE.Group();
   neck.position.y = 4;
   body.add(neck);
-  const head = new THREE.Mesh(HEAD, skinM);
-  head.position.y = 0.64;
+  // the noob keeps the old sharp block head; everyone else gets the rounded one
+  const head = new THREE.Mesh(blocky ? new THREE.BoxGeometry(1.6, 1.1, 1.1) : HEAD, skinM);
+  head.position.y = blocky ? 0.55 : 0.64;
   neck.add(head);
   const faceMat = new THREE.MeshLambertMaterial({ map: faceTex[face], transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
-  const facePlane = new THREE.Mesh(FACE, faceMat);
-  facePlane.position.y = 0.64;
+  const facePlane = new THREE.Mesh(blocky ? new THREE.PlaneGeometry(1.5, 1.05) : FACE, faceMat);
+  if (blocky) facePlane.position.set(0, 0.55, 0.556);
+  else facePlane.position.y = 0.64;
   neck.add(facePlane);
   if (hat) neck.add(hat);
   return {
@@ -300,7 +335,7 @@ const POSES = {
   hug: (t) => ({ lLeg: -1.45, rLeg: -1.45, lArm: -1.4, rArm: -1.4, lArmZ: 0.5, rArmZ: -0.5, head: -0.7 + Math.sin(t * 6) * 0.03, seat: 1 }),
   lie: (t) => ({ lArm: -0.2, rArm: -2.9, lLeg: 0.15, rLeg: -0.1, head: 0.3, lieDown: 1, breath: Math.sin(t * 2) * 0.03 }),
   reach: (t) => ({ lArm: -1.55, rArm: -1.55, head: -0.2 + Math.sin(t * 3) * 0.05 }),
-  limp: (t) => ({ lArm: 0.15, rArm: -0.1, lArmZ: 0.15, rArmZ: -0.15, head: 0.45, lean: 0.25 + Math.sin(t * 1.3) * 0.05 }),
+  limp: (t) => ({ lArm: 0.15, rArm: -0.1, lArmZ: 0.15, rArmZ: -0.15, head: 0.2, lean: 0.25 + Math.sin(t * 1.3) * 0.05 }),
 };
 
 function applyPose(ch, name, t, extra = {}) {
@@ -407,6 +442,46 @@ function roundTree(x, z, s, r) {
   return g;
 }
 
+/**
+ * The real Nosoi, exported from Roblox Studio (public/forsaken/nosoi.obj, in
+ * studs): hundreds of parts that all share the bark colour, merged into one
+ * mesh. Falls back to the hand-built tree if the file cannot be loaded.
+ */
+function loadNosoi(parent) {
+  return new Promise((resolve) => {
+    new OBJLoader().load(
+      `${BASE}forsaken/nosoi.obj`,
+      (obj) => {
+        const geos = [];
+        const heart = [];
+        obj.updateMatrixWorld(true);
+        obj.traverse((o) => {
+          if (!o.isMesh) return;
+          const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+          for (const k of Object.keys(g.attributes)) if (!["position", "normal"].includes(k)) g.deleteAttribute(k);
+          g.applyMatrix4(o.matrixWorld);
+          (/heart/i.test(o.name) ? heart : geos).push(g);
+        });
+        const tree = new THREE.Group();
+        tree.position.z = TREE_Z;
+        const merged = mergeGeometries(geos, false);
+        if (merged) tree.add(new THREE.Mesh(merged, lambert("#7c5642")));
+        const h = heart.length && mergeGeometries(heart, false);
+        if (h) tree.add(new THREE.Mesh(h, lambert("#8a0f14")));
+        parent.add(tree);
+        resolve();
+      },
+      undefined,
+      () => {
+        const tree = mergeStatic(nosoiTree());
+        tree.position.z = TREE_Z;
+        parent.add(tree);
+        resolve();
+      },
+    );
+  });
+}
+
 /** Mottled grass, like an old Roblox grass material. */
 function grassTex(repeat) {
   return canvasTex(256, 256, (x, w, h) => {
@@ -430,7 +505,8 @@ function plankTex(repeat) {
 }
 
 // island bounds: Nosoi stands near one corner, as in the map
-const ISLAND = { x0: -120, x1: 70, z0: -70, z1: 190 };
+export const TREE_Z = -22;
+const ISLAND = { x0: -120, x1: 70, z0: -92, z1: 190 };
 
 function farm() {
   const g = new THREE.Group();
@@ -444,7 +520,6 @@ function farm() {
   const slab = new THREE.Mesh(new THREE.BoxGeometry(W, 24, D), lambert("#3f7a2e"));
   slab.position.set((x0 + x1) / 2, -12.05, (z0 + z1) / 2);
   g.add(slab);
-  g.add(nosoiTree());
   const planks = lambert("#fff", { map: plankTex([1, 30]) });
   const plankX = lambert("#fff", { map: plankTex([1, 20]) });
   const wood = lambert("#6a4a30");
@@ -562,7 +637,7 @@ function farm() {
   for (let i = 0; i < 260 && g.children.length < 400; i++) {
     const x = lerpN(x0 + 6, x1 - 6, r());
     const z = lerpN(z0 + 6, z1 - 6, r());
-    if (Math.hypot(x, z) < 44) continue;
+    if (Math.hypot(x, z - TREE_Z) < 52) continue;
     if (Math.abs(x) < 10 && z > 15) continue;
     if (Math.abs(z - 100) < 10) continue;
     if (Math.abs(x) < 16 && z > 150) continue;
@@ -901,12 +976,13 @@ export function createWorld() {
 
   const groups = { farm: mergeStatic(farm()), core: core(), forest: mergeStatic(deadForest()), heads: mergeStatic(headField()) };
   for (const g of Object.values(groups)) scene.add(g);
+  pending.push(loadNosoi(groups.farm));
 
   const rochas = makeCharacter({
     skin: "#f5cd30", torso: "#2f8a3a", torsoFront: imageTex("jacket.png"), arms: "#2f8a3a", legs: "#1a1a1a", face: "rochas", hat: rochasCap(),
   });
   const cappy = makeCharacter({ skin: "#f5cd30", torso: "#f2f2ee", torsoFront: shirtTex(), arms: "#f2f2ee", legs: "#1e1e1e", face: "epic", hat: cowboyHat() });
-  const noob = makeCharacter({ skin: "#f5cd30", torso: "#2a62c8", arms: "#f5cd30", legs: "#3c9a3c", face: "smile" });
+  const noob = makeCharacter({ skin: "#f8d41c", torso: "#2f4a92", arms: "#f8d41c", legs: "#3a9a42", face: "noob", blocky: true });
   const chars = { rochas, cappy, noob };
   for (const c of Object.values(chars)) scene.add(c.root);
   // Cappy's hat lying in the dirt for the close-up
@@ -972,7 +1048,9 @@ export function createWorld() {
         c.root.position.set(...p.pos);
         c.root.rotation.set(p.rotX || 0, p.rotY || 0, p.rotZ || 0);
         applyPose(c, p.pose || "idle", t, p.extra);
-        c.setFace(p.face || (k === "rochas" ? "worried" : k === "cappy" ? "blank" : "smile"));
+        let face = p.face || (k === "rochas" ? "worried" : k === "cappy" ? "blank" : "noob");
+        if (k === "noob") face = face === "grin" ? "noobGrin" : "noob";
+        c.setFace(face);
       }
       lostHat.visible = !!s.hat;
       if (s.hat) lostHat.position.set(...s.hat);

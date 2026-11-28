@@ -111,6 +111,7 @@ function current(list, t) {
 
 // ---- shots --------------------------------------------------------------------------------------
 
+const TZ = -22; // Nosoi's trunk (see TREE_Z in world.js)
 const HERO = [0, 0, 30];
 const NPC = [0, 0, 21];
 const SUNSET = { bg: 0, skyTop: "#4f5d9a", skyBot: "#f2a866", warm: 0.18, vig: 0.6 };
@@ -132,7 +133,7 @@ const SHOTS = [
   })],
   [6.6, 8.4, (t, lt) => ({
     show: { farm: 1 }, hero: { pos: HERO, rotY: Math.PI, pose: "idle", face: "worried" },
-    cam: [3.5 - lt * 0.6, 1.6, 40 - lt * 1.2], look: [0, 22 + lt * 3, 0], fov: 58,
+    cam: [3.5 - lt * 0.6, 1.6, 40 - lt * 1.2], look: [0, 30 + lt * 3, TZ], fov: 58,
     light: { hemi: 1.5, sunI: 2.4 }, fog: ["#bcd3ea", 150, 600],
     grade: { bg: 0, skyTop: "#5f95dd", skyBot: "#dfeefa", vig: 0.4 },
   })],
@@ -147,12 +148,12 @@ const SHOTS = [
   }],
   [10.6, 13.0, (t, lt) => ({
     show: { farm: 1 },
-    cam: [-5 + lt * 0.6, 9 + lt, 10.5], look: [0, 13 + lt * 2, 0], fov: 50,
+    cam: [-16 + lt * 0.8, 9 + lt, TZ + 26], look: [0, 20 + lt * 2, TZ], fov: 50,
     light: SUNSET_LIGHT, grade: { ...SUNSET, blur: 7 - lt * 2, warm: 0.6, dark: 0.1 },
   })],
   [13.0, 16.5, (t, lt) => ({
     show: { farm: 1 }, chars: { noob: { pos: NPC, rotY: 0, pose: "idle" } },
-    cam: [0.5, 1.2, 25 - lt * 0.8], look: [0, 48 - lt * 2, -2], fov: 60, roll: Math.sin(lt * 0.4) * 0.05,
+    cam: [0.5, 1.2, 25 - lt * 0.8], look: [0, 58 - lt * 2, TZ], fov: 60, roll: Math.sin(lt * 0.4) * 0.05,
     light: { ...SUNSET_LIGHT, hemi: 1.1 }, grade: { ...SUNSET, skyTop: "#cfd6e6", skyBot: "#fff4e4", warm: 0.2, vig: 0.7 },
   })],
   [16.5, 19.6, (t, lt) => ({
@@ -174,7 +175,7 @@ const SHOTS = [
   [23.5, 25.95, (t, lt) => ({
     show: { farm: 1 }, hero: { pos: [-1.6, 0, 33], rotY: Math.PI, pose: "idle", face: "worried" },
     chars: { cappy: { pos: [2.2, 0, 33.6], rotY: Math.PI, pose: "idle" }, noob: { pos: NPC, rotY: 0, pose: "stand" } },
-    cam: [0, 2.2, 56 - lt * 2], look: [0, 14, 0], fov: 50,
+    cam: [0, 2.2, 56 - lt * 2], look: [0, 20, TZ], fov: 50,
     light: SUNSET_LIGHT, grade: { ...SUNSET, warm: 0.45, dark: smooth(lt, 1.6, 2.45) * 0.4 },
   })],
   [25.95, 26.75, (t, lt) => ({
@@ -187,10 +188,10 @@ const SHOTS = [
     const a = Math.floor(lt / (BEAT * 4)); // a new angle every bar
     const k = (lt % (BEAT * 4)) / (BEAT * 4);
     const angles = [
-      { cam: [26 - k * 3, 2, 22], look: [0, 18, 0] },
-      { cam: [5, 9 + k * 8, 12], look: [0, 30 + k * 8, 0] },
-      { cam: [-30 + k * 4, 4, 44], look: [0, 30, 0] },
-      { cam: [0, 14 - k * 4, 19], look: [0, 50, -3] },
+      { cam: [34 - k * 3, 3, TZ + 40], look: [0, 22, TZ] },
+      { cam: [7, 22 + k * 10, TZ + 14], look: [0, 40 + k * 8, TZ] },
+      { cam: [-40 + k * 4, 6, TZ + 66], look: [0, 40, TZ] },
+      { cam: [0, 16 - k * 4, TZ + 30], look: [0, 70, TZ - 4] },
     ];
     const c = angles[a % angles.length];
     return {
@@ -200,15 +201,15 @@ const SHOTS = [
     };
   }],
   [36.9, 38.6, (t, lt) => ({
-    show: { farm: 1 }, hero: { pos: HERO, rotY: Math.PI * 0.85, pose: "limp", face: "worried" },
-    cam: [1.2, 5.2, HERO[2] - 2.4 + lt * 0.2], look: [0, 4.4, HERO[2]], fov: 46,
+    show: { farm: 1 }, hero: { pos: HERO, rotY: Math.PI * 0.85, pose: "stand", face: "worried", extra: { head: -0.15 } },
+    cam: [1.0, 4.3, HERO[2] - 2.8 + lt * 0.2], look: [0, 4.9, HERO[2]], fov: 46,
     light: { hemi: 1.8, sunI: 2.4 }, grade: { green: 1, blur: 2, vig: 0.7, glitch: lt > 1.2 ? 0.6 : 0 },
   })],
   [38.6, 47.4, (t, lt) => {
     const spin = lt > 6.4 ? easeInCubic(prog(lt, 6.4, 8.8)) * 9 : 0;
     return {
-      show: { farm: 1 }, hero: { pos: [0, 9.8, 6], rotY: 0, pose: "lie" },
-      cam: [0.01, 95 - lt * 6, 0.01], look: [0, 0, 0], roll: lt * 0.12 + spin, fov: 55,
+      show: { farm: 1 },
+      cam: [0.01, 120 - lt * 7, TZ + 0.01], look: [0, 0, TZ], roll: lt * 0.12 + spin, fov: 55,
       light: { hemi: 1.4, sunI: 2.2 }, fog: ["#000", 300, 900],
       grade: { bg: 3, red: 1, poster: 3, rot: 0.2 + 0.5 * smooth(lt, 0, 8), vig: 0.9, glitch: spin > 0.5 ? 0.7 : 0 },
     };
@@ -221,8 +222,8 @@ const SHOTS = [
     grade: { bg: 1, rayC: [0.5, 0.42], ...RED, poster: 3, zig: smooth(lt, 2.2, 3) * 0.8, vig: 0.7 },
   })],
   [54.0, 57.4, (t, lt) => ({
-    show: { farm: 1 }, hero: { pos: [-2, 7.0, 10], rotY: 0.5, pose: "lie" },
-    cam: [6 - lt * 0.5, 12, 17], look: [-2, 7, 10], fov: 48,
+    show: { farm: 1 }, hero: { pos: [-3, 0.2, 26], rotY: 0.5, pose: "lie" },
+    cam: [5 - lt * 0.5, 7, 33], look: [-3, 0.6, 25], fov: 48,
     light: { hemi: 1.2, sunI: 1.6 }, fog: ["#200", 30, 200],
     grade: { bg: 3, ...RED, poster: 4, invert: lt > 1.8 && lt < 2.25 ? 1 : 0, vig: 0.9 },
   })],
@@ -255,20 +256,20 @@ const SHOTS = [
   })],
   [74.6, 77.5, (t, lt) => ({
     show: { farm: 1 },
-    cam: [-8 + lt * 2, 6, 150 - lt * 6], look: [0, 30, 0], fov: 46,
+    cam: [-8 + lt * 2, 6, 150 - lt * 6], look: [0, 36, TZ], fov: 46,
     light: { hemi: 0.05, sunI: 0, backI: 0.3 }, fog: ["#4a0000", 120, 400],
     grade: { bg: 0, skyTop: "#2a0000", skyBot: "#ff2a10", vig: 0.9, glitch: lt < 0.25 ? 0.8 : 0 },
   })],
   // ---- grow farther ------------------------------------------------------------------------------
   [77.5, 78.6, (t, lt) => ({
     show: { farm: 1 },
-    cam: [8, 1.5, 28], look: [0, 46, 0], fov: 62,
+    cam: [10, 1.5, 30], look: [0, 60, TZ], fov: 62,
     light: { hemi: 1.6, sunI: 2.4 }, fog: ["#bcd3ea", 150, 600],
     grade: { bg: 0, skyTop: "#5f95dd", skyBot: "#eaf3fb", vig: 0.4 },
   })],
   [78.6, 80.6, (t, lt) => ({
     show: { farm: 1 },
-    cam: [0, 2, 46 - lt * 2], look: [0, 40, 0], fov: 58,
+    cam: [0, 2, 52 - lt * 2], look: [0, 48, TZ], fov: 58,
     light: { hemi: 0.08, sunI: 0.05 }, fog: ["#1a1020", 300, 900],
     grade: { bg: 4, vig: 0.8 },
   })],
@@ -280,7 +281,7 @@ const SHOTS = [
   })],
   [82.6, 84.6, (t, lt) => ({
     show: { farm: 1 }, hero: { pos: [0, 0, 40], rotY: Math.PI, pose: "idle", face: "worried" },
-    cam: [0.5, 5.4, 49 - lt * 1.2], look: [0, 18, 0], fov: 52,
+    cam: [0.5, 5.4, 49 - lt * 1.2], look: [0, 24, TZ], fov: 52,
     light: SUNSET_LIGHT, grade: { ...SUNSET, warm: 0.9, vig: 1.4, dark: 0.15 },
   })],
   [84.6, 88.1, (t, lt) => {
