@@ -302,21 +302,47 @@ function shotAt(t) {
 
 // ---- 2D drawing helpers -----------------------------------------------------------------------
 
+const textCache = new Map();
+
+/**
+ * Tall red serif text with a soft glow. The glow (shadowBlur) is slow, so each
+ * phrase is drawn once into its own canvas and reused every frame.
+ */
 function condensed(ctx, str, x, y, size, { color = "#e0141c", alpha = 1, glow = 0.8, squeeze = 0.62, align = "center" } = {}) {
+  const px = Math.max(8, Math.round(size / 4) * 4);
+  const key = `${str}|${px}|${color}|${glow}|${squeeze}`;
+  let c = textCache.get(key);
+  if (!c) {
+    const m = document.createElement("canvas").getContext("2d");
+    m.font = `700 ${px}px ${SERIF}`;
+    const pad = px * 0.4;
+    const w = Math.ceil(m.measureText(str).width * squeeze + pad * 2);
+    const h = Math.ceil(px * 1.5 + pad * 2);
+    c = document.createElement("canvas");
+    c.width = Math.max(1, w);
+    c.height = h;
+    const x2 = c.getContext("2d");
+    x2.translate(pad, h / 2);
+    x2.scale(squeeze, 1);
+    x2.font = `700 ${px}px ${SERIF}`;
+    x2.textBaseline = "middle";
+    x2.shadowColor = `rgba(255,20,30,${glow})`;
+    x2.shadowBlur = px * 0.25;
+    x2.fillStyle = color;
+    x2.fillText(str, 0, 0);
+    x2.shadowBlur = 0;
+    x2.globalAlpha = 0.35;
+    x2.fillText(str, px * 0.03, px * 0.02);
+    if (textCache.size > 120) textCache.clear();
+    textCache.set(key, c);
+  }
+  const k = size / px;
+  const dw = c.width * k;
+  const dh = c.height * k;
+  const dx = align === "center" ? x - dw / 2 : align === "right" ? x - dw : x;
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.translate(x, y);
-  ctx.scale(squeeze, 1);
-  ctx.font = `700 ${size}px ${SERIF}`;
-  ctx.textAlign = align;
-  ctx.textBaseline = "middle";
-  ctx.shadowColor = `rgba(255,20,30,${glow})`;
-  ctx.shadowBlur = size * 0.25;
-  ctx.fillStyle = color;
-  ctx.fillText(str, 0, 0);
-  ctx.shadowBlur = 0;
-  ctx.globalAlpha = alpha * 0.35;
-  ctx.fillText(str, size * 0.03, size * 0.02);
+  ctx.drawImage(c, dx, y - dh / 2, dw, dh);
   ctx.restore();
 }
 
